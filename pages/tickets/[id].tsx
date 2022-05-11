@@ -13,10 +13,8 @@ export default function TicketLayout(props: InferGetServerSidePropsType<typeof g
       <Head>
         <title>{props.ticket.title}</title>
       </Head>
-
       <h1>Hello {props.ticket.id}</h1>
-      <p>Received data is {props.ticket.id}</p>
-
+      Received data is {props.ticket.id}, created at {props.ticket.createdAt} and updated at {props.ticket.updatedAt}
       <h3>{props.ticket.title}</h3>
       <p>{props.ticket.content}</p>
     </>
