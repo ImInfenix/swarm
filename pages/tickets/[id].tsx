@@ -1,6 +1,6 @@
-import { GetServerSidePropsContext, InferGetServerSidePropsType, NextPage } from 'next'
+import { GetServerSidePropsContext, InferGetServerSidePropsType } from 'next'
 import Head from 'next/head'
-import Prisma from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import prismaInstance from '../../lib/prisma'
 
 export default function TicketLayout(props: InferGetServerSidePropsType<typeof getServerSideProps>) {

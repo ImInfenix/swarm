@@ -5,10 +5,13 @@ let prismaInstance: PrismaClient
 if (process.env.NODE_ENV === 'production') {
   prismaInstance = new PrismaClient()
 } else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient()
+  let globalWithPrisma = global as typeof globalThis & {
+    prisma: PrismaClient
   }
-  prismaInstance = global.prisma
+  if (!globalWithPrisma.prisma) {
+    globalWithPrisma.prisma = new PrismaClient()
+  }
+  prismaInstance = globalWithPrisma.prisma
 }
 
 export default prismaInstance

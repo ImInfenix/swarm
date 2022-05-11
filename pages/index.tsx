@@ -1,7 +1,6 @@
-import type { GetStaticProps, NextPage } from 'next'
+import type { NextPage } from 'next'
 import Head from 'next/head'
 import styles from '../styles/Home.module.css'
-import prismaInstance from '../lib/prisma'
 
 const Home: NextPage = () => {
   return (
@@ -20,13 +19,5 @@ const Home: NextPage = () => {
     </div>
   )
 }
-
-// export async function getStaticProps() {
-//   const tickets = await prisma.ticket.findMany({
-//     orderBy: { createdAt: 'desc' },
-//   })
-
-//   return { props: { tickets } }
-// }
 
 export default Home
