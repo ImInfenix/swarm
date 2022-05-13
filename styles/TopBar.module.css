@@ -1,0 +1,15 @@
+.topBar {
+  display: flex;
+  width: 100%;
+  border-bottom: 10px solid rgba(26, 32, 44);
+}
+
+.leftContent {
+  display: inline-flex;
+}
+
+.rightContent {
+  flex: right;
+  display: flex;
+  justify-content: flex-end;
+}
