@@ -30,7 +30,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   }
 
   const id: number = parseInt(idStr)
-  var ticket: Prisma.PromiseReturnType<typeof prisma.ticket.findUnique> = await prisma.ticket.findUnique({
+  let ticket: Prisma.PromiseReturnType<typeof prisma.ticket.findUnique> = await prisma.ticket.findUnique({
     where: {
       id: id,
     },

@@ -21,6 +21,7 @@ export default function Home(props: InferGetServerSidePropsType<typeof getServer
 
 
 export async function getServerSideProps(context: GetServerSidePropsContext) {
-  var ticketCount: Prisma.PromiseReturnType<typeof prisma.ticket.count> = await prisma.ticket.count();
+  const ticketCount: Prisma.PromiseReturnType<typeof prisma.ticket.count> = await prisma.ticket.count();
+
   return { props: { ticketCount } }
-} 
+}
