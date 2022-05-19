@@ -1,14 +1,18 @@
 .topBar {
-  display: inline-flex;
-  width: 100%;
+  display: grid;
   border-bottom: 10px solid rgba(26, 32, 44);
-  align-items: baseline;
+  grid-template-columns: auto auto;
+  margin: auto 0;
 }
 
 .leftContent {
-  padding: 0 1em;
+  justify-self: start;
+  padding-left: 1em;
+  margin: auto 0;
 }
 
 .rightContent {
-  padding: 0 1em;
+  justify-self: end;
+  padding-right: 1em;
+  margin: auto 0;
 }
