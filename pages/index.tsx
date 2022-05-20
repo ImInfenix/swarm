@@ -1,4 +1,4 @@
-import type { NextPage } from 'next'
+import { getSession } from 'next-auth/react'
 import TicketsSummary from '../components/TicketsSummary'
 import styles from '../styles/Home.module.css'
 import { Prisma } from '@prisma/client'
@@ -13,15 +13,19 @@ export default function Home(props: InferGetServerSidePropsType<typeof getServer
 
         <p className={styles.description}>A community-oriented bug tracker</p>
 
+        <p>You are currently {props.connectionStatus}</p>
+
         <TicketsSummary ticketCount={props.ticketCount} />
       </div>
     </div>
   )
 }
 
-
 export async function getServerSideProps(context: GetServerSidePropsContext) {
-  const ticketCount: Prisma.PromiseReturnType<typeof prisma.ticket.count> = await prisma.ticket.count();
+  const ticketCount: Prisma.PromiseReturnType<typeof prisma.ticket.count> = await prisma.ticket.count()
 
-  return { props: { ticketCount } }
+  const session = await getSession(context)
+  const connectionStatus: string = session ? 'connected' : 'disconnected'
+
+  return { props: { ticketCount, connectionStatus } }
 }

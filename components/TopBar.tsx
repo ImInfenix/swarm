@@ -2,8 +2,30 @@ import Image from 'next/image'
 import Link from 'next/link'
 import styles from '../styles/TopBar.module.css'
 import swarmLogo from "../public/SwarmLogo.svg"
+import { GetServerSidePropsContext } from 'next'
+import { signOut, useSession } from "next-auth/react"
 
 export default function TopBar() {
+
+  const { data: session, status } = useSession()
+
+  let signUpContent = null
+
+  if (session) {
+    signUpContent = (
+      <button onClick={() => signOut()}>
+        <a>Log out</a>
+      </button>
+    )
+  }
+  else {
+    signUpContent = (
+      <Link href="/api/auth/signin">
+        Log in
+      </Link>
+    )
+  }
+
   return (
     <div className={styles.topBar}>
       <div className={styles.leftContent}>
@@ -16,10 +38,14 @@ export default function TopBar() {
       <div className={styles.rightContent}>
         <ul>
           <li>
-            <button type="submit">Sign in</button>
+            {signUpContent}
           </li>
         </ul>
       </div>
     </div>
   )
+}
+
+export function getServerSideProps(context: GetServerSidePropsContext) {
+  return { props: {} }
 }
