@@ -36,11 +36,7 @@ export default function TopBar() {
         </Link>
       </div>
       <div className={styles.rightContent}>
-        <ul>
-          <li>
-            {signUpContent}
-          </li>
-        </ul>
+        {signUpContent}
       </div>
     </div>
   )
