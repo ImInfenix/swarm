@@ -34,6 +34,12 @@ export default function TopBar() {
             <Image src={swarmLogo} alt="Swarm Logo" width={32} height={32} />
           </a>
         </Link>
+        <Link href="/projects">
+          Projects
+        </Link>
+        <Link href="/account">
+          Account
+        </Link>
       </div>
       <div className={styles.rightContent}>
         {signUpContent}
