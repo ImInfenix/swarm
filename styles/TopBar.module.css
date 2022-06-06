@@ -32,10 +32,6 @@
   justify-content: center;
 }
 
-.topBar li {
-  display: list-item;
-}
-
 .topBar button, .topBar a {
   background-color: transparent;
   border: none;
@@ -44,5 +40,5 @@
   padding: 0;
   cursor: pointer;
   text-align: center;
-  /* max-height: 32px; */
+  padding: 0 .5em;
 }
