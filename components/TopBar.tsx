@@ -26,6 +26,16 @@ export default function TopBar() {
     )
   }
 
+  let contentIfLoggedIn = null
+
+  if (session) {
+    contentIfLoggedIn = (
+      <Link href="/account">
+        Account
+      </Link>
+    )
+  }
+
   return (
     <div className={styles.topBar}>
       <div className={styles.leftContent}>
@@ -37,9 +47,7 @@ export default function TopBar() {
         <Link href="/projects">
           Projects
         </Link>
-        <Link href="/account">
-          Account
-        </Link>
+        {contentIfLoggedIn}
       </div>
       <div className={styles.rightContent}>
         {signUpContent}
