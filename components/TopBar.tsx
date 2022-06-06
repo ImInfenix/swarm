@@ -41,7 +41,3 @@ export default function TopBar() {
     </div>
   )
 }
-
-export function getServerSideProps(context: GetServerSidePropsContext) {
-  return { props: {} }
-}

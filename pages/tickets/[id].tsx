@@ -1,5 +1,4 @@
 import { GetServerSidePropsContext, InferGetServerSidePropsType } from 'next'
-import Head from 'next/head'
 import { Prisma } from '@prisma/client'
 import prisma from '../../lib/prisma'
 
