@@ -4,6 +4,10 @@ export default function Account() {
 
     const { data: session, status } = useSession()
 
+    if (!session) {
+        return <p>You are not logged in</p>
+    }
+
     return (
         <div>
             <h1>Account</h1>
