@@ -1,8 +1,7 @@
-import NextAuth, { Account, Profile } from "next-auth"
+import NextAuth from "next-auth"
 import GithubProvider from "next-auth/providers/github"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import prisma from "../../../lib/prisma"
-import { JWT } from "next-auth/jwt"
 
 export default NextAuth({
   adapter: PrismaAdapter(prisma),
