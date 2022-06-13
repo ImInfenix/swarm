@@ -54,6 +54,7 @@ model User {
   sessions      Session[]
   createdAt     DateTime  @default(now())
   tickets       Ticket[]
+  Project       Project[]
 }
 
 model VerificationToken {
@@ -62,4 +63,13 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 }
