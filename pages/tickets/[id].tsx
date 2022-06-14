@@ -2,7 +2,9 @@ import { GetServerSidePropsContext, InferGetServerSidePropsType } from 'next'
 import { Prisma } from '@prisma/client'
 import prisma from '../../lib/prisma'
 
-export default function TicketLayout(props: InferGetServerSidePropsType<typeof getServerSideProps>) {
+export default function TicketLayout(
+  props: InferGetServerSidePropsType<typeof getServerSideProps>
+) {
   if (props.ticket === undefined || props.ticket === null) {
     return null
   }
@@ -10,7 +12,8 @@ export default function TicketLayout(props: InferGetServerSidePropsType<typeof g
   return (
     <>
       <h1>Hello {props.ticket.id}</h1>
-      Received data is {props.ticket.id}, created at {props.ticket.createdAt} and updated at {props.ticket.updatedAt}
+      Received data is {props.ticket.id}, created at {props.ticket.createdAt}{' '}
+      and updated at {props.ticket.updatedAt}
       <h3>{props.ticket.title}</h3>
       <p>{props.ticket.content}</p>
     </>
@@ -29,11 +32,12 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   }
 
   const id: number = parseInt(idStr)
-  let ticket: Prisma.PromiseReturnType<typeof prisma.ticket.findUnique> = await prisma.ticket.findUnique({
-    where: {
-      id: id,
-    },
-  })
+  let ticket: Prisma.PromiseReturnType<typeof prisma.ticket.findUnique> =
+    await prisma.ticket.findUnique({
+      where: {
+        id: id,
+      },
+    })
 
   ticket = JSON.parse(JSON.stringify(ticket))
 
