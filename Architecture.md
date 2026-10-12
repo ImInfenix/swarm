@@ -24,9 +24,15 @@ Les pages seront rendues par le serveur. Le CSS définira une interface responsi
 
 Une bibliothèque légère pourra être ajoutée plus tard pour une interaction précise si le besoin apparaît. React et Next.js ne sont pas retenus pour cette version.
 
+### API externe : Django REST Framework
+
+Une API JSON versionnée couvre les comptes, les projets, les tickets et les commentaires. Django REST Framework apporte la validation des requêtes, les réponses JSON, la pagination et les contrôles d'accès sans créer une seconde application ni dupliquer le modèle de données. Les pages HTML et l'API partagent les mêmes règles métier.
+
+Les clients externes utilisent un jeton Bearer révocable, valable 30 jours. Seul son condensat SHA-256 est conservé en base ; le jeton brut n'est remis qu'à sa création. Les lectures publiques restent accessibles sans jeton. Les clients doivent utiliser HTTPS en production. Les appels depuis un autre site web ne sont pas autorisés par CORS dans la configuration initiale.
+
 ### Comptes et sécurité : fonctions intégrées à Django
 
-L'authentification par compte et mot de passe, les sessions, la protection contre les requêtes intersites et les contrôles d'accès s'appuieront sur Django. Chaque opération sensible vérifiera les droits côté serveur. Une connexion par un fournisseur externe pourra être étudiée après la première version, sans être nécessaire à son fonctionnement.
+L'authentification par compte et mot de passe, les sessions, la protection contre les requêtes intersites et les contrôles d'accès s'appuieront sur Django. Les clients de l'API utilisent des jetons distincts des sessions du site. Chaque opération sensible vérifiera les droits côté serveur. Une connexion par un fournisseur externe pourra être étudiée après la première version, sans être nécessaire à son fonctionnement.
 
 ### Exploitation et vérification
 
