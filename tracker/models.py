@@ -1,4 +1,5 @@
 import hashlib
+import re
 import unicodedata
 from itertools import count
 
@@ -14,6 +15,10 @@ def validate_project_name(value):
         raise ValidationError("Utilisez uniquement des lettres, des chiffres, des espaces ou des traits d'union.")
     if not any(unicodedata.category(character)[0] in {"L", "N"} for character in value):
         raise ValidationError("Le nom doit contenir une lettre ou un chiffre.")
+
+
+def normalize_project_name(value):
+    return re.sub(" +", " ", unicodedata.normalize("NFKC", value)).strip()
 
 
 def project_slug_base(name):
@@ -105,3 +110,13 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment on ticket {self.ticket_id}"
+
+
+class ApiToken(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_tokens")
+    digest = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-created_at"]

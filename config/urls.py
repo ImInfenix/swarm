@@ -2,11 +2,22 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from tracker import views
+from tracker import api, views
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/v1/", api.ApiRoot.as_view(), name="api_root"),
+    path("api/v1/auth/signup/", api.SignupApi.as_view(), name="api_signup"),
+    path("api/v1/auth/token/", api.TokenApi.as_view(), name="api_token"),
+    path("api/v1/auth/me/", api.MeApi.as_view(), name="api_me"),
+    path("api/v1/projects/", api.ProjectListApi.as_view(), name="api_project_list"),
+    path("api/v1/projects/<slug:slug>/", api.ProjectDetailApi.as_view(), name="api_project_detail"),
+    path("api/v1/projects/<slug:slug>/tickets/", api.ProjectTicketListApi.as_view(), name="api_project_tickets"),
+    path("api/v1/tickets/", api.TicketListApi.as_view(), name="api_ticket_list"),
+    path("api/v1/tickets/<int:pk>/", api.TicketDetailApi.as_view(), name="api_ticket_detail"),
+    path("api/v1/tickets/<int:pk>/triage/", api.TicketTriageApi.as_view(), name="api_ticket_triage"),
+    path("api/v1/tickets/<int:pk>/comments/", api.CommentListApi.as_view(), name="api_ticket_comments"),
     path("", views.home, name="home"),
     path("projects/", views.project_list, name="project_list"),
     path("projects/new/", views.project_create, name="project_create"),

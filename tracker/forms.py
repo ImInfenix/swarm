@@ -1,11 +1,8 @@
-import re
-import unicodedata
-
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .models import Comment, Project, Ticket
+from .models import Comment, Project, Ticket, normalize_project_name
 
 
 class SignUpForm(UserCreationForm):
@@ -31,7 +28,7 @@ class ProjectForm(forms.ModelForm):
         widgets = {"description": forms.Textarea(attrs={"rows": 5})}
 
     def clean_name(self):
-        name = re.sub(" +", " ", unicodedata.normalize("NFKC", self.cleaned_data["name"])).strip()
+        name = normalize_project_name(self.cleaned_data["name"])
         if len(name) > 80:
             raise forms.ValidationError("Le nom ne peut pas dépasser 80 caractères.")
         return name
