@@ -7,7 +7,7 @@ from .models import Comment, Project, Ticket
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "owner", "created_at")
     search_fields = ("name", "description", "owner__username")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("slug", "created_at", "updated_at")
 
 
 @admin.register(Ticket)

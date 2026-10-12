@@ -1,3 +1,6 @@
+import re
+import unicodedata
+
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
@@ -22,12 +25,16 @@ class SignUpForm(UserCreationForm):
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ("name", "slug", "description")
-        labels = {"name": "Nom", "slug": "Identifiant dans l'adresse", "description": "Description"}
+        fields = ("name", "description")
+        labels = {"name": "Nom", "description": "Description"}
+        help_texts = {"name": "L'adresse est créée automatiquement à partir du nom (10 caractères maximum). Lettres, chiffres, espaces et traits d'union uniquement."}
         widgets = {"description": forms.Textarea(attrs={"rows": 5})}
 
-    def clean_slug(self):
-        return self.cleaned_data["slug"].lower()
+    def clean_name(self):
+        name = re.sub(" +", " ", unicodedata.normalize("NFKC", self.cleaned_data["name"])).strip()
+        if len(name) > 80:
+            raise forms.ValidationError("Le nom ne peut pas dépasser 80 caractères.")
+        return name
 
 
 class ProjectEditForm(forms.ModelForm):
@@ -35,7 +42,10 @@ class ProjectEditForm(forms.ModelForm):
         model = Project
         fields = ("name", "description")
         labels = {"name": "Nom", "description": "Description"}
+        help_texts = {"name": "L'adresse du projet reste inchangée si vous modifiez son nom."}
         widgets = {"description": forms.Textarea(attrs={"rows": 5})}
+
+    clean_name = ProjectForm.clean_name
 
 
 class TicketForm(forms.ModelForm):

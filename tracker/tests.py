@@ -21,7 +21,7 @@ class TrackerFlowTests(TestCase):
         self.assertContains(response, "First issue")
 
     def test_guest_cannot_create_content(self):
-        response = self.client.post(reverse("project_create"), {"name": "Other", "slug": "other"})
+        response = self.client.post(reverse("project_create"), {"name": "Other"})
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Project.objects.filter(slug="other").exists())
         response = self.client.post(reverse("comment_create", args=[self.ticket.pk]), {"body": "Reply"})
@@ -30,7 +30,7 @@ class TrackerFlowTests(TestCase):
 
     def test_member_can_create_project_ticket_and_comment(self):
         self.client.force_login(self.member)
-        response = self.client.post(reverse("project_create"), {"name": "Second", "slug": "second", "description": "Another project"})
+        response = self.client.post(reverse("project_create"), {"name": "Second", "description": "Another project"})
         self.assertRedirects(response, reverse("project_detail", args=["second"]))
         self.assertEqual(Project.objects.get(slug="second").owner, self.member)
         response = self.client.post(reverse("ticket_create", args=["demo"]), {"title": "New issue", "description": "A description"})
@@ -72,6 +72,30 @@ class TrackerFlowTests(TestCase):
         self.assertRedirects(response, reverse("home"))
         self.assertEqual(User.objects.get(username="new-member").email, "new@example.com")
         self.assertIn("_auth_user_id", self.client.session)
+
+    def test_project_slug_is_generated_and_unique(self):
+        self.client.force_login(self.member)
+        first = self.client.post(reverse("project_create"), {"name": "Équipe   Projet Long", "description": "First"})
+        second = self.client.post(reverse("project_create"), {"name": "Équipe Projet Long", "description": "Second"})
+        self.assertRedirects(first, reverse("project_detail", args=["equipe-pro"]))
+        self.assertRedirects(second, reverse("project_detail", args=["equipe-p-2"]))
+        self.assertEqual(Project.objects.get(slug="equipe-pro").name, "Équipe Projet Long")
+        self.assertLessEqual(len(Project.objects.get(description="Second").slug), 10)
+
+    def test_project_name_rejects_markup_and_control_characters(self):
+        self.client.force_login(self.member)
+        for name in ("<script>", "Team/Other", "Team\u202eOther", "O'Reilly"):
+            response = self.client.post(reverse("project_create"), {"name": name})
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Utilisez uniquement")
+        self.assertEqual(Project.objects.count(), 1)
+
+    def test_project_name_edit_keeps_existing_address(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(reverse("project_edit", args=["demo"]), {"name": "Updated name", "description": "Example"})
+        self.assertRedirects(response, reverse("project_detail", args=["demo"]))
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.slug, "demo")
 
     def test_untrusted_next_does_not_redirect_externally(self):
         response = self.client.post(reverse("login"), {"username": "member", "password": "strong-test-password", "next": "https://example.com/"})
