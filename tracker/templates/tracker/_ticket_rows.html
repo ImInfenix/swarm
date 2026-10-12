@@ -1,0 +1,8 @@
+{% for ticket in tickets %}
+  <a class="ticket-row" href="{{ ticket.get_absolute_url }}">
+    <span class="ticket-main"><strong>{{ ticket.title }}</strong><small>{{ ticket.project.name }} · #{{ ticket.pk }} · {{ ticket.created_at|date:"d/m/Y" }}</small></span>
+    <span class="ticket-meta"><span class="badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span><span class="priority">{{ ticket.get_priority_display }}</span></span>
+  </a>
+{% empty %}
+  <p class="empty">Aucun ticket pour le moment.</p>
+{% endfor %}

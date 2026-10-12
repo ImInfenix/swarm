@@ -1,0 +1,36 @@
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Swarm, un espace pour suivre les problèmes et leurs solutions.">
+  <title>{% block title %}Swarm{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'tracker/styles.css' %}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{% url 'home' %}" aria-label="Swarm, accueil"><span class="brand-mark">✳</span> Swarm</a>
+      <nav class="main-nav" aria-label="Navigation principale">
+        <a href="{% url 'project_list' %}">Projets</a>
+        <a href="{% url 'ticket_list' %}">Tickets</a>
+      </nav>
+      <nav class="account-nav" aria-label="Compte">
+        {% if user.is_authenticated %}
+          <span class="account-name">{{ user.username }}</span>
+          <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="text-button" type="submit">Déconnexion</button></form>
+        {% else %}
+          <a href="{% url 'login' %}">Connexion</a>
+          <a class="button button-small" href="{% url 'signup' %}">S'inscrire</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+  <main class="container main-content">
+    {% for message in messages %}<div class="notice" role="status">{{ message }}</div>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer"><div class="container">Swarm · Un espace commun pour résoudre les problèmes.</div></footer>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Projets · Swarm{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Explorer</p><h1>Projets</h1><p class="muted">Parcourez les espaces de travail de la communauté.</p></div>{% if user.is_authenticated %}<a class="button" href="{% url 'project_create' %}">Créer un projet</a>{% endif %}</div>
+<form class="filter-bar" method="get"><label for="query">Rechercher un projet</label><div class="filter-controls"><input id="query" type="search" name="q" value="{{ query }}" placeholder="Nom ou description"><button class="button" type="submit">Rechercher</button></div></form>
+{% include 'tracker/_project_cards.html' %}
+{% include 'tracker/_pagination.html' %}
+{% endblock %}

@@ -1,0 +1,6 @@
+{% extends 'tracker/base.html' %}
+{% block content %}
+<section class="hero"><div><p class="eyebrow">Bienvenue sur Swarm</p><h1>Les problèmes avancent mieux ensemble.</h1><p class="lead">Signalez un problème, échangez avec la communauté et suivez sa résolution dans un espace clair.</p><div class="hero-actions"><a class="button" href="{% url 'project_list' %}">Explorer les projets</a>{% if user.is_authenticated %}<a class="button button-outline" href="{% url 'project_create' %}">Créer un projet</a>{% else %}<a class="button button-outline" href="{% url 'signup' %}">Rejoindre Swarm</a>{% endif %}</div></div><div class="hero-art" aria-hidden="true"><div class="orb orb-one"></div><div class="orb orb-two"></div><div class="orb orb-three"></div><span>✳</span></div></section>
+<section class="section"><div class="section-head"><div><p class="eyebrow">La communauté</p><h2>Projets à découvrir</h2></div><a class="section-link" href="{% url 'project_list' %}">Tous les projets →</a></div>{% include 'tracker/_project_cards.html' %}</section>
+<section class="section"><div class="section-head"><div><p class="eyebrow">En ce moment</p><h2>Tickets récents</h2></div><a class="section-link" href="{% url 'ticket_list' %}">Tous les tickets →</a></div><div class="panel">{% include 'tracker/_ticket_rows.html' %}</div></section>
+{% endblock %}

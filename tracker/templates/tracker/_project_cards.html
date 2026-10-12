@@ -1,0 +1,7 @@
+<div class="project-grid">
+  {% for project in projects %}
+    <a class="project-card" href="{{ project.get_absolute_url }}"><span class="project-symbol">{{ project.name|first|upper }}</span><h3>{{ project.name }}</h3><p>{{ project.description|default:"Aucune description pour le moment."|truncatewords:24 }}</p><span class="card-foot">{{ project.ticket_count }} ticket{{ project.ticket_count|pluralize }} <span aria-hidden="true">↗</span></span></a>
+  {% empty %}
+    <p class="empty">Aucun projet pour le moment.</p>
+  {% endfor %}
+</div>

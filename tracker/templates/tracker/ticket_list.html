@@ -1,0 +1,8 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Tickets · Swarm{% endblock %}
+{% block content %}
+<div class="page-head"><div><p class="eyebrow">Suivi</p><h1>Tickets</h1><p class="muted">Les problèmes signalés dans tous les projets.</p></div></div>
+<form class="filter-bar inline-filters" method="get"><div class="grow"><label for="query">Recherche</label><input id="query" type="search" name="q" value="{{ query }}" placeholder="Titre, description ou projet"></div><div><label for="status">État</label><select id="status" name="status"><option value="">Tous</option>{% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button class="button" type="submit">Filtrer</button></form>
+<div class="panel">{% include 'tracker/_ticket_rows.html' %}</div>
+{% include 'tracker/_pagination.html' %}
+{% endblock %}

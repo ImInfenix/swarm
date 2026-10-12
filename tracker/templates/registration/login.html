@@ -1,0 +1,5 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Connexion · Swarm{% endblock %}
+{% block content %}
+<div class="form-page"><p class="eyebrow">Bienvenue</p><h1>Connexion</h1><form class="panel form-panel" method="post">{% csrf_token %}{% include 'tracker/_form_fields.html' %}<input type="hidden" name="next" value="{{ next }}"><button class="button" type="submit">Se connecter</button><p class="form-footer">Pas encore de compte ? <a href="{% url 'signup' %}">S'inscrire</a></p></form></div>
+{% endblock %}
