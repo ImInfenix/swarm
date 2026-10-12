@@ -32,7 +32,7 @@ L'authentification par compte et mot de passe, les sessions, la protection contr
 
 Le déploiement visé est une instance unique de l'application derrière un serveur HTTPS, avec un emplacement persistant pour SQLite et les éventuels fichiers déposés par les utilisateurs. Les migrations seront exécutées explicitement lors des mises à jour. Les parcours essentiels et les règles de permissions seront vérifiés par les outils de test de Django.
 
-La base PostgreSQL du prototype restera distincte tant qu'une reprise de ses données n'aura pas été décidée et vérifiée. Aucun secret ne doit être versionné dans le dépôt : le fichier `.env.config` a été retiré du suivi. Les éventuelles valeurs réelles qu'il contenait doivent être renouvelées avant toute mise en service.
+La base PostgreSQL du prototype restera distincte tant qu'une reprise de ses données n'aura pas été décidée et vérifiée. Aucun secret ne doit être versionné dans le dépôt. Les anciens fichiers d'environnement locaux ont été supprimés ; les éventuelles valeurs réelles qu'ils contenaient doivent être renouvelées avant toute mise en service.
 
 ## 2. Concept de l'application
 
