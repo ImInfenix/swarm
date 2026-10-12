@@ -87,7 +87,7 @@ class TrackerFlowTests(TestCase):
         for name in ("<script>", "Team/Other", "Team\u202eOther", "O'Reilly"):
             response = self.client.post(reverse("project_create"), {"name": name})
             self.assertEqual(response.status_code, 200)
-            self.assertContains(response, "Utilisez uniquement")
+            self.assertContains(response, "Use only")
         self.assertEqual(Project.objects.count(), 1)
 
     def test_project_name_edit_keeps_existing_address(self):

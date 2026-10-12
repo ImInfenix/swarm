@@ -1,5 +1,6 @@
 {% extends 'tracker/base.html' %}
-{% block title %}Connexion · Swarm{% endblock %}
+{% load i18n %}
+{% block title %}{% translate 'Log in' %} · Swarm{% endblock %}
 {% block content %}
-<div class="form-page"><p class="eyebrow">Bienvenue</p><h1>Connexion</h1><form class="panel form-panel" method="post">{% csrf_token %}{% include 'tracker/_form_fields.html' %}<input type="hidden" name="next" value="{{ next }}"><button class="button" type="submit">Se connecter</button><p class="form-footer">Pas encore de compte ? <a href="{% url 'signup' %}">S'inscrire</a></p></form></div>
+<div class="form-page"><p class="eyebrow">{% translate 'Welcome back' %}</p><h1>{% translate 'Log in' %}</h1><form class="panel form-panel" method="post">{% csrf_token %}{% include 'tracker/_form_fields.html' %}<input type="hidden" name="next" value="{{ next }}"><button class="button" type="submit">{% translate 'Log in' %}</button><p class="form-footer">{% translate 'No account yet?' %} <a href="{% url 'signup' %}">{% translate 'Sign up' %}</a></p></form></div>
 {% endblock %}

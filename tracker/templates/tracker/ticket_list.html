@@ -1,8 +1,9 @@
 {% extends 'tracker/base.html' %}
+{% load i18n %}
 {% block title %}Tickets · Swarm{% endblock %}
 {% block content %}
-<div class="page-head"><div><p class="eyebrow">Suivi</p><h1>Tickets</h1><p class="muted">Les problèmes signalés dans tous les projets.</p></div></div>
-<form class="filter-bar inline-filters" method="get"><div class="grow"><label for="query">Recherche</label><input id="query" type="search" name="q" value="{{ query }}" placeholder="Titre, description ou projet"></div><div><label for="status">État</label><select id="status" name="status"><option value="">Tous</option>{% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button class="button" type="submit">Filtrer</button></form>
+<div class="page-head"><div><p class="eyebrow">{% translate 'Tracking' %}</p><h1>{% translate 'Tickets' %}</h1><p class="muted">{% translate 'Issues reported across all projects.' %}</p></div></div>
+<form class="filter-bar inline-filters" method="get"><div class="grow"><label for="query">{% translate 'Search' %}</label><input id="query" type="search" name="q" value="{{ query }}" placeholder="{% translate 'Title, description, or project' %}"></div><div><label for="status">{% translate 'Status' %}</label><select id="status" name="status"><option value="">{% translate 'All statuses' %}</option>{% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button class="button" type="submit">{% translate 'Filter' %}</button></form>
 <div class="panel">{% include 'tracker/_ticket_rows.html' %}</div>
 {% include 'tracker/_pagination.html' %}
 {% endblock %}

@@ -1,15 +1,21 @@
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
+from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from .forms import CommentForm, ProjectEditForm, ProjectForm, SignUpForm, TicketForm, TriageForm
-from .models import Project, Ticket
+from .middleware import LANGUAGE_COOKIE
+from .models import Project, Ticket, UserPreference
 
 
 def home(request):
@@ -59,9 +65,9 @@ def project_create(request):
         project = form.save(commit=False)
         project.owner = request.user
         project.save()
-        messages.success(request, "Projet créé.")
+        messages.success(request, _("Project created."))
         return redirect(project)
-    return render(request, "tracker/form.html", {"form": form, "title": "Nouveau projet", "submit_label": "Créer le projet"})
+    return render(request, "tracker/form.html", {"form": form, "title": _("New project"), "submit_label": _("Create project")})
 
 
 @login_required
@@ -72,9 +78,9 @@ def project_edit(request, slug):
     form = ProjectEditForm(request.POST or None, instance=project)
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Projet mis à jour.")
+        messages.success(request, _("Project updated."))
         return redirect(project)
-    return render(request, "tracker/form.html", {"form": form, "title": "Modifier le projet", "submit_label": "Enregistrer"})
+    return render(request, "tracker/form.html", {"form": form, "title": _("Edit project"), "submit_label": _("Save changes")})
 
 
 def ticket_list(request):
@@ -100,9 +106,9 @@ def ticket_create(request, slug):
         ticket.project = project
         ticket.author = request.user
         ticket.save()
-        messages.success(request, "Ticket créé.")
+        messages.success(request, _("Ticket created."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": f"Nouveau ticket · {project.name}", "submit_label": "Créer le ticket"})
+    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket")})
 
 
 def ticket_detail(request, pk):
@@ -119,9 +125,9 @@ def ticket_edit(request, pk):
     form = TicketForm(request.POST or None, instance=ticket)
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Ticket mis à jour.")
+        messages.success(request, _("Ticket updated."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": "Modifier le ticket", "submit_label": "Enregistrer"})
+    return render(request, "tracker/form.html", {"form": form, "title": _("Edit ticket"), "submit_label": _("Save changes")})
 
 
 @login_required
@@ -132,9 +138,9 @@ def ticket_triage(request, pk):
     form = TriageForm(request.POST or None, instance=ticket)
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Traitement mis à jour.")
+        messages.success(request, _("Triage updated."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": "Traiter le ticket", "submit_label": "Enregistrer"})
+    return render(request, "tracker/form.html", {"form": form, "title": _("Triage ticket"), "submit_label": _("Save changes")})
 
 
 @login_required
@@ -148,7 +154,7 @@ def comment_create(request, pk):
         comment.author = request.user
         comment.save()
         Ticket.objects.filter(pk=ticket.pk).update(updated_at=timezone.now())
-        messages.success(request, "Commentaire ajouté.")
+        messages.success(request, _("Comment added."))
         return redirect(ticket)
     comments = ticket.comments.select_related("author")
     return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form}, status=400)
@@ -160,7 +166,23 @@ def signup(request):
     form = SignUpForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         user = form.save()
+        UserPreference.objects.create(user=user, language=request.LANGUAGE_CODE)
         login(request, user)
-        messages.success(request, "Compte créé.")
+        messages.success(request, _("Account created."))
         return redirect("home")
-    return render(request, "tracker/form.html", {"form": form, "title": "Créer un compte", "submit_label": "S'inscrire"})
+    return render(request, "tracker/form.html", {"form": form, "title": _("Create an account"), "submit_label": _("Sign up")})
+
+
+@require_POST
+def set_language(request):
+    language = request.POST.get("language", "")
+    if language not in dict(settings.LANGUAGES):
+        return HttpResponseBadRequest(_("Unsupported language."))
+    if request.user.is_authenticated:
+        UserPreference.objects.update_or_create(user=request.user, defaults={"language": language})
+    target = request.POST.get("next") or reverse("home")
+    if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=not settings.DEBUG):
+        target = reverse("home")
+    response = redirect(target)
+    response.set_cookie(LANGUAGE_COOKIE, language, max_age=365 * 24 * 60 * 60, secure=not settings.DEBUG, httponly=True, samesite="Lax")
+    return response

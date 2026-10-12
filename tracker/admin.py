@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import ApiToken, Comment, Project, Ticket
+from .models import ApiToken, Comment, Project, Ticket, UserPreference
+
+
+@admin.register(UserPreference)
+class UserPreferenceAdmin(admin.ModelAdmin):
+    list_display = ("user", "language")
+    search_fields = ("user__username",)
 
 
 @admin.register(Project)

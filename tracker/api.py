@@ -3,6 +3,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils import translation
+from django.utils.translation import gettext as _
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -12,7 +14,7 @@ from rest_framework.views import APIView
 
 from .api_auth import issue_api_token
 from .forms import SignUpForm
-from .models import Comment, Project, Ticket, normalize_project_name
+from .models import Comment, Project, Ticket, UserPreference, normalize_project_name
 
 
 class ApiPagination(PageNumberPagination):
@@ -25,6 +27,11 @@ class UserSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     username = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
+    language = serializers.SerializerMethodField()
+
+    def get_language(self, user):
+        preference = UserPreference.objects.filter(user=user).first()
+        return preference.language if preference else "en"
 
 
 class StrictModelSerializer(serializers.ModelSerializer):
@@ -32,7 +39,7 @@ class StrictModelSerializer(serializers.ModelSerializer):
         if isinstance(data, dict):
             unknown = set(data) - set(self.fields)
             if unknown:
-                raise ValidationError({field: ["Champ non pris en charge."] for field in sorted(unknown)})
+                raise ValidationError({field: [_("Unsupported field.")] for field in sorted(unknown)})
         return super().to_internal_value(data)
 
 
@@ -52,7 +59,7 @@ class ProjectWriteSerializer(StrictModelSerializer):
     def validate_name(self, value):
         name = normalize_project_name(value)
         if len(name) > 80:
-            raise ValidationError("Le nom ne peut pas dépasser 80 caractères.")
+            raise ValidationError(_("The name cannot exceed 80 characters."))
         return name
 
 
@@ -115,7 +122,8 @@ class ApiRoot(APIView):
                 {"method": "POST", "path": "/api/v1/auth/signup/", "access": "public", "body": ["username", "email", "password1", "password2"], "returns": ["user", "token", "expires_at"]},
                 {"method": "POST", "path": "/api/v1/auth/token/", "access": "public", "body": ["username", "password"], "returns": ["user", "token", "expires_at"]},
                 {"method": "DELETE", "path": "/api/v1/auth/token/", "access": "token", "description": "Revoke the current token."},
-                {"method": "GET", "path": "/api/v1/auth/me/", "access": "token", "returns": ["id", "username", "email"]},
+                {"method": "GET", "path": "/api/v1/auth/me/", "access": "token", "returns": ["id", "username", "email", "language"]},
+                {"method": "PATCH", "path": "/api/v1/auth/me/", "access": "token", "body": ["language"], "values": {"language": ["en", "fr"]}},
                 {"method": "GET", "path": "/api/v1/projects/", "access": "public", "query": ["q", "page", "page_size"], "returns": "paginated projects"},
                 {"method": "POST", "path": "/api/v1/projects/", "access": "token", "body": ["name", "description"], "description": "The slug is generated from the name and limited to 10 characters."},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/", "access": "public", "returns": ["id", "name", "slug", "description", "owner", "created_at", "updated_at"]},
@@ -139,12 +147,13 @@ class SignupApi(APIView):
 
     def post(self, request):
         if not isinstance(request.data, dict):
-            raise ValidationError({"detail": "Objet JSON attendu."})
+            raise ValidationError({"detail": _("Expected a JSON object.")})
         form = SignUpForm(request.data)
         if not form.is_valid():
             raise ValidationError({field: list(errors) for field, errors in form.errors.items()})
         with transaction.atomic():
             user = form.save()
+            UserPreference.objects.create(user=user, language=request.LANGUAGE_CODE)
             value, token = issue_api_token(user)
         return Response({"user": UserSerializer(user).data, "token": value, "expires_at": token.expires_at}, status=status.HTTP_201_CREATED)
 
@@ -155,14 +164,15 @@ class TokenApi(APIView):
 
     def post(self, request):
         if not isinstance(request.data, dict):
-            raise ValidationError({"detail": "Objet JSON attendu."})
+            raise ValidationError({"detail": _("Expected a JSON object.")})
         username = request.data.get("username", "")
         password = request.data.get("password", "")
         if not isinstance(username, str) or not isinstance(password, str):
-            raise ValidationError({"detail": "Identifiants invalides."})
+            raise ValidationError({"detail": _("Invalid credentials.")})
         user = authenticate(request=request._request, username=username, password=password)
         if user is None:
-            raise ValidationError({"detail": "Identifiants invalides."})
+            raise ValidationError({"detail": _("Invalid credentials.")})
+        UserPreference.objects.get_or_create(user=user, defaults={"language": request.LANGUAGE_CODE})
         value, token = issue_api_token(user)
         return Response({"user": UserSerializer(user).data, "token": value, "expires_at": token.expires_at})
 
@@ -177,6 +187,17 @@ class MeApi(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        return Response(UserSerializer(request.user).data)
+
+    def patch(self, request):
+        if not isinstance(request.data, dict) or set(request.data) != {"language"}:
+            raise ValidationError({"language": _("Provide a language: en or fr.")})
+        language = request.data["language"]
+        if language not in ("en", "fr"):
+            raise ValidationError({"language": _("Provide a language: en or fr.")})
+        UserPreference.objects.update_or_create(user=request.user, defaults={"language": language})
+        translation.activate(language)
+        request._request.LANGUAGE_CODE = language
         return Response(UserSerializer(request.user).data)
 
 

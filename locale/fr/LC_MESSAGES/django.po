@@ -1,0 +1,327 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Swarm\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#, python-format
+msgid "%(count)s ticket"
+msgid_plural "%(count)s tickets"
+msgstr[0] "%(count)s ticket"
+msgstr[1] "%(count)s tickets"
+
+#, python-format
+msgid "Page %(number)s of %(total)s"
+msgstr "Page %(number)s sur %(total)s"
+
+msgid "Account"
+msgstr "Compte"
+
+msgid "Account created."
+msgstr "Compte créé."
+
+msgid "Add a comment"
+msgstr "Ajouter un commentaire"
+
+msgid "All priorities"
+msgstr "Toutes les priorités"
+
+msgid "All projects"
+msgstr "Tous les projets"
+
+msgid "All statuses"
+msgstr "Tous les états"
+
+msgid "All tickets"
+msgstr "Tous les tickets"
+
+msgid "Breadcrumb"
+msgstr "Fil d’Ariane"
+
+msgid "Browse the community workspaces."
+msgstr "Parcourez les espaces de la communauté."
+
+msgid "Closed"
+msgstr "Fermé"
+
+msgid "Comment added."
+msgstr "Commentaire ajouté."
+
+msgid "Could not generate a unique address for this project."
+msgstr "Impossible de générer une adresse unique pour ce projet."
+
+msgid "Create a project"
+msgstr "Créer un projet"
+
+msgid "Create an account"
+msgstr "Créer un compte"
+
+msgid "Create project"
+msgstr "Créer le projet"
+
+msgid "Create ticket"
+msgstr "Créer le ticket"
+
+msgid "Deleted account"
+msgstr "Compte supprimé"
+
+msgid "Description"
+msgstr "Description"
+
+msgid "Details"
+msgstr "Détails"
+
+msgid "Discussion"
+msgstr "Discussion"
+
+msgid "Edit"
+msgstr "Modifier"
+
+msgid "Edit project"
+msgstr "Modifier le projet"
+
+msgid "Edit ticket"
+msgstr "Modifier le ticket"
+
+msgid "Email address"
+msgstr "Adresse e-mail"
+
+msgid "Expected a JSON object."
+msgstr "Un objet JSON est attendu."
+
+msgid "Explore"
+msgstr "Explorer"
+
+msgid "Explore projects"
+msgstr "Explorer les projets"
+
+msgid "Filter"
+msgstr "Filtrer"
+
+msgid "High"
+msgstr "Élevée"
+
+msgid "In progress"
+msgstr "En cours"
+
+msgid "Invalid credentials."
+msgstr "Identifiants invalides."
+
+msgid "Invalid or expired token."
+msgstr "Jeton invalide ou expiré."
+
+msgid "Invalid token."
+msgstr "Jeton invalide."
+
+msgid "Issues reported across all projects."
+msgstr "Les problèmes signalés dans tous les projets."
+
+msgid "Join Swarm"
+msgstr "Rejoindre Swarm"
+
+msgid "Language"
+msgstr "Langue"
+
+msgid "Log in"
+msgstr "Se connecter"
+
+msgid "Log out"
+msgstr "Se déconnecter"
+
+msgid "Low"
+msgstr "Faible"
+
+msgid "Main navigation"
+msgstr "Navigation principale"
+
+msgid "Name"
+msgstr "Nom"
+
+msgid "Name or description"
+msgstr "Nom ou description"
+
+msgid "New project"
+msgstr "Nouveau projet"
+
+#, python-format
+msgid "New ticket · %(project)s"
+msgstr "Nouveau ticket · %(project)s"
+
+msgid "Next"
+msgstr "Suivant"
+
+msgid "No account yet?"
+msgstr "Pas encore de compte ?"
+
+msgid "No comments yet."
+msgstr "Aucun commentaire pour le moment."
+
+msgid "No description yet."
+msgstr "Pas encore de description."
+
+msgid "No projects yet."
+msgstr "Aucun projet pour le moment."
+
+msgid "No tickets yet."
+msgstr "Aucun ticket pour le moment."
+
+msgid "Normal"
+msgstr "Normale"
+
+msgid "Open"
+msgstr "Ouvert"
+
+msgid "Open a ticket"
+msgstr "Ouvrir un ticket"
+
+msgid "Opened by"
+msgstr "Ouvert par"
+
+msgid "Owner"
+msgstr "Responsable"
+
+msgid "Pagination"
+msgstr "Pagination"
+
+msgid "Previous"
+msgstr "Précédent"
+
+msgid "Priority"
+msgstr "Priorité"
+
+msgid "Problems move forward together."
+msgstr "Les problèmes avancent ensemble."
+
+msgid "Project"
+msgstr "Projet"
+
+msgid "Project created."
+msgstr "Projet créé."
+
+msgid "Project updated."
+msgstr "Projet mis à jour."
+
+msgid "Projects"
+msgstr "Projets"
+
+msgid "Projects to explore"
+msgstr "Projets à explorer"
+
+msgid "Provide a language: en or fr."
+msgstr "Indiquez une langue : en ou fr."
+
+msgid "Publish"
+msgstr "Publier"
+
+msgid "Recent tickets"
+msgstr "Tickets récents"
+
+msgid "Report an issue, talk with the community, and follow its progress in one clear place."
+msgstr "Signalez un problème, échangez avec la communauté et suivez son avancement au même endroit."
+
+msgid "Resolved"
+msgstr "Résolu"
+
+msgid "Right now"
+msgstr "En ce moment"
+
+msgid "Save changes"
+msgstr "Enregistrer les modifications"
+
+msgid "Search"
+msgstr "Rechercher"
+
+msgid "Search projects"
+msgstr "Rechercher des projets"
+
+msgid "Sign up"
+msgstr "S’inscrire"
+
+msgid "Status"
+msgstr "État"
+
+msgid "Swarm · A shared place to solve problems."
+msgstr "Swarm · Un espace commun pour résoudre les problèmes."
+
+msgid "Swarm, a shared place to track problems and solutions."
+msgstr "Swarm, un espace commun pour suivre les problèmes et leurs solutions."
+
+msgid "Swarm, home"
+msgstr "Swarm, accueil"
+
+msgid "The address is generated from the name (up to 10 characters). Use only letters, numbers, spaces, and hyphens."
+msgstr "L’adresse est générée à partir du nom (10 caractères au maximum). Utilisez uniquement des lettres, des chiffres, des espaces et des traits d’union."
+
+msgid "The community"
+msgstr "La communauté"
+
+msgid "The name cannot exceed 80 characters."
+msgstr "Le nom ne peut pas dépasser 80 caractères."
+
+msgid "The name must contain a letter or a number."
+msgstr "Le nom doit contenir une lettre ou un chiffre."
+
+msgid "The project address stays the same when you change its name."
+msgstr "L’adresse du projet reste la même lorsque vous changez son nom."
+
+msgid "This email address is already in use."
+msgstr "Cette adresse e-mail est déjà utilisée."
+
+msgid "Ticket created."
+msgstr "Ticket créé."
+
+msgid "Ticket updated."
+msgstr "Ticket mis à jour."
+
+msgid "Tickets"
+msgstr "Tickets"
+
+msgid "Title"
+msgstr "Titre"
+
+msgid "Title, description, or project"
+msgstr "Titre, description ou projet"
+
+msgid "Tracking"
+msgstr "Suivi"
+
+msgid "Triage"
+msgstr "Qualifier"
+
+msgid "Triage ticket"
+msgstr "Qualifier le ticket"
+
+msgid "Triage updated."
+msgstr "Qualification mise à jour."
+
+msgid "Unsupported field."
+msgstr "Champ non pris en charge."
+
+msgid "Unsupported language."
+msgstr "Langue non prise en charge."
+
+msgid "Updated on"
+msgstr "Mis à jour le"
+
+msgid "Urgent"
+msgstr "Urgente"
+
+msgid "Use only letters, numbers, spaces, or hyphens."
+msgstr "Utilisez uniquement des lettres, des chiffres, des espaces ou des traits d’union."
+
+msgid "Welcome back"
+msgstr "Bon retour"
+
+msgid "Welcome to Swarm"
+msgstr "Bienvenue sur Swarm"
+
+msgid "Your comment"
+msgstr "Votre commentaire"
+
+msgid "on"
+msgstr "le"
+
+msgid "to join the discussion."
+msgstr "pour participer à la discussion."

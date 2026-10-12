@@ -8,13 +8,14 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
 from django.urls import reverse
 from django.utils.text import slugify
+from django.utils.translation import gettext_lazy as _
 
 
 def validate_project_name(value):
     if not value or any(unicodedata.category(character)[0] not in {"L", "N"} and character not in {" ", "-"} for character in value):
-        raise ValidationError("Utilisez uniquement des lettres, des chiffres, des espaces ou des traits d'union.")
+        raise ValidationError(_("Use only letters, numbers, spaces, or hyphens."))
     if not any(unicodedata.category(character)[0] in {"L", "N"} for character in value):
-        raise ValidationError("Le nom doit contenir une lettre ou un chiffre.")
+        raise ValidationError(_("The name must contain a letter or a number."))
 
 
 def normalize_project_name(value):
@@ -29,7 +30,7 @@ def project_slug_base(name):
 def project_slug_candidate(base, index):
     suffix = "" if index == 1 else f"-{index}"
     if len(suffix) >= 10:
-        raise ValidationError("Impossible de générer une adresse unique pour ce projet.")
+        raise ValidationError(_("Could not generate a unique address for this project."))
     return f"{base[:10 - len(suffix)].rstrip('-')}{suffix}"
 
 
@@ -69,16 +70,16 @@ class Project(models.Model):
 
 class Ticket(models.Model):
     class Status(models.TextChoices):
-        OPEN = "open", "Ouvert"
-        IN_PROGRESS = "in_progress", "En cours"
-        RESOLVED = "resolved", "Résolu"
-        CLOSED = "closed", "Fermé"
+        OPEN = "open", _("Open")
+        IN_PROGRESS = "in_progress", _("In progress")
+        RESOLVED = "resolved", _("Resolved")
+        CLOSED = "closed", _("Closed")
 
     class Priority(models.TextChoices):
-        LOW = "low", "Faible"
-        NORMAL = "normal", "Normale"
-        HIGH = "high", "Élevée"
-        URGENT = "urgent", "Urgente"
+        LOW = "low", _("Low")
+        NORMAL = "normal", _("Normal")
+        HIGH = "high", _("High")
+        URGENT = "urgent", _("Urgent")
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tickets")
     title = models.CharField(max_length=160)
@@ -120,3 +121,8 @@ class ApiToken(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class UserPreference(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="preference")
+    language = models.CharField(max_length=2, choices=settings.LANGUAGES, default="en")

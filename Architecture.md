@@ -24,6 +24,8 @@ Les pages seront rendues par le serveur. Le CSS définira une interface responsi
 
 Une bibliothèque légère pourra être ajoutée plus tard pour une interaction précise si le besoin apparaît. React et Next.js ne sont pas retenus pour cette version.
 
+L'interface utilise les traductions intégrées à Django. L'anglais est la langue par défaut et le français reste disponible. La préférence d'un membre est enregistrée avec son compte ; celle d'un visiteur est conservée dans un cookie.
+
 ### API externe : Django REST Framework
 
 Une API JSON versionnée couvre les comptes, les projets, les tickets et les commentaires. Django REST Framework apporte la validation des requêtes, les réponses JSON, la pagination et les contrôles d'accès sans créer une seconde application ni dupliquer le modèle de données. Les pages HTML et l'API partagent les mêmes règles métier.
@@ -51,6 +53,7 @@ Swarm est un espace de suivi de problèmes organisé par projets. Il permet à u
 - Le créateur d'un projet en est le responsable : il peut modifier sa présentation et organiser le traitement de ses tickets.
 - L'auteur d'un ticket peut corriger sa description. Les changements concernant le traitement du ticket relèvent du responsable du projet.
 - Un administrateur peut intervenir sur les comptes et les contenus en cas d'abus ou d'erreur.
+- Chacun peut lire l'interface en anglais ou en français. Le choix d'un membre est retrouvé lorsqu'il se reconnecte.
 
 ### Projets
 

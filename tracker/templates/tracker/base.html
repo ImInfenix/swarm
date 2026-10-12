@@ -1,28 +1,34 @@
-{% load static %}
+{% load static i18n %}
 <!doctype html>
-<html lang="fr">
+<html lang="{{ request.LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Swarm, un espace pour suivre les problèmes et leurs solutions.">
+  <meta name="description" content="{% translate 'Swarm, a shared place to track problems and solutions.' %}">
   <title>{% block title %}Swarm{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'tracker/styles.css' %}">
 </head>
 <body>
   <header class="site-header">
     <div class="container header-inner">
-      <a class="brand" href="{% url 'home' %}" aria-label="Swarm, accueil"><span class="brand-mark">✳</span> Swarm</a>
-      <nav class="main-nav" aria-label="Navigation principale">
-        <a href="{% url 'project_list' %}">Projets</a>
-        <a href="{% url 'ticket_list' %}">Tickets</a>
+      <a class="brand" href="{% url 'home' %}" aria-label="{% translate 'Swarm, home' %}"><span class="brand-mark">✳</span> Swarm</a>
+      <nav class="main-nav" aria-label="{% translate 'Main navigation' %}">
+        <a href="{% url 'project_list' %}">{% translate 'Projects' %}</a>
+        <a href="{% url 'ticket_list' %}">{% translate 'Tickets' %}</a>
       </nav>
-      <nav class="account-nav" aria-label="Compte">
+      <form class="language-switch" action="{% url 'set_language' %}" method="post" aria-label="{% translate 'Language' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" name="language" value="en" lang="en" aria-label="English" {% if request.LANGUAGE_CODE == 'en' %}aria-current="true"{% endif %}>EN</button>
+        <button type="submit" name="language" value="fr" lang="fr" aria-label="Français" {% if request.LANGUAGE_CODE == 'fr' %}aria-current="true"{% endif %}>FR</button>
+      </form>
+      <nav class="account-nav" aria-label="{% translate 'Account' %}">
         {% if user.is_authenticated %}
           <span class="account-name">{{ user.username }}</span>
-          <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="text-button" type="submit">Déconnexion</button></form>
+          <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="text-button" type="submit">{% translate 'Log out' %}</button></form>
         {% else %}
-          <a href="{% url 'login' %}">Connexion</a>
-          <a class="button button-small" href="{% url 'signup' %}">S'inscrire</a>
+          <a href="{% url 'login' %}">{% translate 'Log in' %}</a>
+          <a class="button button-small" href="{% url 'signup' %}">{% translate 'Sign up' %}</a>
         {% endif %}
       </nav>
     </div>
@@ -31,6 +37,6 @@
     {% for message in messages %}<div class="notice" role="status">{{ message }}</div>{% endfor %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="site-footer"><div class="container">Swarm · Un espace commun pour résoudre les problèmes.</div></footer>
+  <footer class="site-footer"><div class="container">{% translate 'Swarm · A shared place to solve problems.' %}</div></footer>
 </body>
 </html>

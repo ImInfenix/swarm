@@ -1,0 +1,2 @@
+-r requirements.txt
+polib==1.2.0
