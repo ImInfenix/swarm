@@ -54,6 +54,7 @@ Swarm est un espace de suivi de problèmes organisé par projets. Il permet à u
 - L'auteur d'un ticket peut corriger sa description. Les changements concernant le traitement du ticket relèvent du responsable du projet.
 - Un administrateur peut intervenir sur les comptes et les contenus en cas d'abus ou d'erreur.
 - Chacun peut lire l'interface en anglais ou en français. Le choix d'un membre est retrouvé lorsqu'il se reconnecte.
+- Un membre peut changer son mot de passe, déconnecter tous ses appareils ou supprimer son compte. Après suppression, ses contributions restent visibles sans son nom et ses projets peuvent être repris par un administrateur.
 
 ### Projets
 

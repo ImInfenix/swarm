@@ -1,9 +1,11 @@
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,8 +16,9 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from .forms import CommentForm, ProjectEditForm, ProjectForm, SignUpForm, TicketForm, TriageForm
+from .account import revoke_user_access
 from .middleware import LANGUAGE_COOKIE
-from .models import Project, Ticket, UserPreference
+from .models import ApiToken, Project, Ticket, UserPreference
 
 
 def home(request):
@@ -171,6 +174,50 @@ def signup(request):
         messages.success(request, _("Account created."))
         return redirect("home")
     return render(request, "tracker/form.html", {"form": form, "title": _("Create an account"), "submit_label": _("Sign up")})
+
+
+@login_required
+def account(request):
+    form = PasswordChangeForm(request.user)
+    return render(request, "tracker/account.html", {"password_form": form})
+
+
+@login_required
+@require_POST
+def change_password(request):
+    form = PasswordChangeForm(request.user, request.POST)
+    if not form.is_valid():
+        return render(request, "tracker/account.html", {"password_form": form}, status=400)
+    user = form.save()
+    ApiToken.objects.filter(user=user).delete()
+    update_session_auth_hash(request, user)
+    messages.success(request, _("Password changed."))
+    return redirect("account")
+
+
+@login_required
+@require_POST
+def logout_all(request):
+    if request.POST.get("confirm") != "logout":
+        return HttpResponseBadRequest(_("Confirmation required."))
+    with transaction.atomic():
+        revoke_user_access(request.user)
+    logout(request)
+    messages.success(request, _("Signed out on all devices."))
+    return redirect("home")
+
+
+@login_required
+@require_POST
+def delete_account(request):
+    if request.POST.get("confirm") != "delete":
+        return HttpResponseBadRequest(_("Confirmation required."))
+    with transaction.atomic():
+        revoke_user_access(request.user)
+        request.user.delete()
+    logout(request)
+    messages.success(request, _("Account deleted."))
+    return redirect("home")
 
 
 @require_POST

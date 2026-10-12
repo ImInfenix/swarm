@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate
+from django.contrib.auth.forms import PasswordChangeForm
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -13,8 +14,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .api_auth import issue_api_token
+from .account import revoke_user_access
 from .forms import SignUpForm
-from .models import Comment, Project, Ticket, UserPreference, normalize_project_name
+from .models import ApiToken, Comment, Project, Ticket, UserPreference, normalize_project_name
 
 
 class ApiPagination(PageNumberPagination):
@@ -44,7 +46,10 @@ class StrictModelSerializer(serializers.ModelSerializer):
 
 
 class ProjectSerializer(serializers.ModelSerializer):
-    owner = serializers.CharField(source="owner.username", read_only=True)
+    owner = serializers.SerializerMethodField()
+
+    def get_owner(self, project):
+        return project.owner.username if project.owner else None
 
     class Meta:
         model = Project
@@ -124,6 +129,9 @@ class ApiRoot(APIView):
                 {"method": "DELETE", "path": "/api/v1/auth/token/", "access": "token", "description": "Revoke the current token."},
                 {"method": "GET", "path": "/api/v1/auth/me/", "access": "token", "returns": ["id", "username", "email", "language"]},
                 {"method": "PATCH", "path": "/api/v1/auth/me/", "access": "token", "body": ["language"], "values": {"language": ["en", "fr"]}},
+                {"method": "DELETE", "path": "/api/v1/auth/me/", "access": "token", "description": "Delete the account and anonymize its contributions."},
+                {"method": "POST", "path": "/api/v1/auth/password/", "access": "token", "body": ["old_password", "new_password1", "new_password2"], "description": "Change the password and revoke all API tokens."},
+                {"method": "POST", "path": "/api/v1/auth/logout-all/", "access": "token", "description": "Revoke all sessions and API tokens."},
                 {"method": "GET", "path": "/api/v1/projects/", "access": "public", "query": ["q", "page", "page_size"], "returns": "paginated projects"},
                 {"method": "POST", "path": "/api/v1/projects/", "access": "token", "body": ["name", "description"], "description": "The slug is generated from the name and limited to 10 characters."},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/", "access": "public", "returns": ["id", "name", "slug", "description", "owner", "created_at", "updated_at"]},
@@ -199,6 +207,35 @@ class MeApi(APIView):
         translation.activate(language)
         request._request.LANGUAGE_CODE = language
         return Response(UserSerializer(request.user).data)
+
+    def delete(self, request):
+        with transaction.atomic():
+            revoke_user_access(request.user)
+            request.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PasswordApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not isinstance(request.data, dict):
+            raise ValidationError({"detail": _("Expected a JSON object.")})
+        form = PasswordChangeForm(request.user, request.data)
+        if not form.is_valid():
+            raise ValidationError({field: list(errors) for field, errors in form.errors.items()})
+        user = form.save()
+        ApiToken.objects.filter(user=user).delete()
+        return Response({"detail": _("Password changed. Sign in again to use the API.")})
+
+
+class LogoutAllApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        with transaction.atomic():
+            revoke_user_access(request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ProjectListApi(APIView):

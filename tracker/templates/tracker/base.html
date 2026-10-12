@@ -24,7 +24,7 @@
       </form>
       <nav class="account-nav" aria-label="{% translate 'Account' %}">
         {% if user.is_authenticated %}
-          <span class="account-name">{{ user.username }}</span>
+          <a href="{% url 'account' %}">{% translate 'My account' %}</a>
           <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="text-button" type="submit">{% translate 'Log out' %}</button></form>
         {% else %}
           <a href="{% url 'login' %}">{% translate 'Log in' %}</a>
@@ -38,5 +38,6 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="site-footer"><div class="container">{% translate 'Swarm · A shared place to solve problems.' %}</div></footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

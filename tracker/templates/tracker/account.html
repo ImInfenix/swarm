@@ -1,0 +1,53 @@
+{% extends 'tracker/base.html' %}
+{% load i18n static %}
+{% block title %}{% translate 'My account' %} · Swarm{% endblock %}
+{% block content %}
+<div class="account-page">
+  <div class="page-head"><div><p class="eyebrow">Swarm</p><h1>{% translate 'My account' %}</h1><p class="muted">{{ user.username }} · {{ user.email }}</p></div></div>
+  <section class="panel account-section" aria-label="{% translate 'Change password' %}">
+    <button class="button button-outline" type="button" id="password-toggle" aria-controls="password-panel" aria-expanded="{% if password_form.is_bound %}true{% else %}false{% endif %}">{% translate 'Change password' %}</button>
+    <div id="password-panel" class="password-panel" {% if not password_form.is_bound %}hidden{% endif %}>
+      <form method="post" action="{% url 'change_password' %}">
+        {% csrf_token %}
+        {% include 'tracker/_form_fields.html' with form=password_form %}
+        <button class="button" type="submit">{% translate 'Save password' %}</button>
+      </form>
+    </div>
+  </section>
+  <section class="panel account-section">
+    <h2>{% translate 'Sign out all devices' %}</h2>
+    <p class="muted">{% translate 'This ends every browser session and revokes all API tokens.' %}</p>
+    <button class="button button-outline" type="button" data-open-logout-all>{% translate 'Sign out all devices' %}</button>
+  </section>
+  <section class="panel account-section account-danger">
+    <h2>{% translate 'Delete account' %}</h2>
+    <p class="muted">{% translate 'Your published projects, tickets, and comments will remain visible without your account name.' %}</p>
+    <button class="button button-danger" type="button" data-open-delete-account>{% translate 'Delete account' %}</button>
+  </section>
+  <dialog id="logout-all-dialog" class="account-dialog" aria-labelledby="logout-all-title">
+    <h2 id="logout-all-title">{% translate 'Sign out all devices' %}</h2>
+    <p>{% translate 'This ends every browser session and revokes all API tokens.' %}</p>
+    <div class="account-dialog-actions">
+      <button class="button button-outline" type="button" data-close-logout-all>{% translate 'Cancel' %}</button>
+      <form method="post" action="{% url 'logout_all' %}">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="logout">
+        <button class="button" type="submit">{% translate 'Sign out all devices' %}</button>
+      </form>
+    </div>
+  </dialog>
+  <dialog id="delete-account-dialog" class="account-dialog" aria-labelledby="delete-account-title">
+    <h2 id="delete-account-title">{% translate 'Confirm account deletion' %}</h2>
+    <p>{% translate 'Your account will be permanently deleted. This action cannot be undone.' %}</p>
+    <div class="account-dialog-actions">
+      <button class="button button-outline" type="button" data-close-delete-account>{% translate 'Cancel' %}</button>
+      <form method="post" action="{% url 'delete_account' %}">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="delete">
+        <button class="button button-danger" type="submit">{% translate 'Delete account' %}</button>
+      </form>
+    </div>
+  </dialog>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'tracker/account.js' %}?v=2" defer></script>{% endblock %}

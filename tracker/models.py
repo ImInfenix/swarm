@@ -38,7 +38,7 @@ class Project(models.Model):
     name = models.CharField(max_length=80, validators=[validate_project_name])
     slug = models.SlugField(max_length=10, unique=True, blank=True, editable=False)
     description = models.TextField(blank=True)
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="owned_projects")
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="owned_projects")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -325,3 +325,48 @@ msgstr "le"
 
 msgid "to join the discussion."
 msgstr "pour participer à la discussion."
+
+msgid "Account deleted."
+msgstr "Compte supprimé."
+
+msgid "Cancel"
+msgstr "Annuler"
+
+msgid "Change password"
+msgstr "Changer le mot de passe"
+
+msgid "Confirm account deletion"
+msgstr "Confirmer la suppression du compte"
+
+msgid "Confirmation required."
+msgstr "Confirmation requise."
+
+msgid "Delete account"
+msgstr "Supprimer le compte"
+
+msgid "My account"
+msgstr "Mon compte"
+
+msgid "Password changed."
+msgstr "Mot de passe modifié."
+
+msgid "Password changed. Sign in again to use the API."
+msgstr "Mot de passe modifié. Reconnectez-vous pour utiliser l’API."
+
+msgid "Save password"
+msgstr "Enregistrer le mot de passe"
+
+msgid "Sign out all devices"
+msgstr "Déconnecter tous les appareils"
+
+msgid "Signed out on all devices."
+msgstr "Tous les appareils ont été déconnectés."
+
+msgid "This ends every browser session and revokes all API tokens."
+msgstr "Cette action ferme toutes les sessions et révoque tous les jetons d’API."
+
+msgid "Your account will be permanently deleted. This action cannot be undone."
+msgstr "Votre compte sera définitivement supprimé. Cette action est irréversible."
+
+msgid "Your published projects, tickets, and comments will remain visible without your account name."
+msgstr "Vos projets, tickets et commentaires publiés restent visibles sans votre nom de compte."
