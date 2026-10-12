@@ -1,6 +1,6 @@
 # Architecture de Swarm
 
-Ce document décrit la version de Swarm à construire. Le prototype actuellement présent dans le dépôt utilise Next.js, React, Prisma et PostgreSQL ; ces éléments ne font pas partie de l'architecture retenue ci-dessous.
+Ce document décrit la version de Swarm à construire. Le prototype de 2022, conservé sur la branche `prototype_2022`, utilise Next.js, React, Prisma et PostgreSQL ; ces éléments ne font pas partie de l'architecture retenue ci-dessous.
 
 ## 1. Technologies retenues et raisons
 
@@ -32,7 +32,7 @@ L'authentification par compte et mot de passe, les sessions, la protection contr
 
 Le déploiement visé est une instance unique de l'application derrière un serveur HTTPS, avec un emplacement persistant pour SQLite et les éventuels fichiers déposés par les utilisateurs. Les migrations seront exécutées explicitement lors des mises à jour. Les parcours essentiels et les règles de permissions seront vérifiés par les outils de test de Django.
 
-La base PostgreSQL du prototype restera distincte tant qu'une reprise de ses données n'aura pas été décidée et vérifiée. Aucun secret ne doit être versionné dans le dépôt : le fichier `.env.config` actuellement suivi par Git devra être examiné et retiré du suivi avant toute mise en service, avec renouvellement des valeurs si elles sont réelles.
+La base PostgreSQL du prototype restera distincte tant qu'une reprise de ses données n'aura pas été décidée et vérifiée. Aucun secret ne doit être versionné dans le dépôt : le fichier `.env.config` a été retiré du suivi. Les éventuelles valeurs réelles qu'il contenait doivent être renouvelées avant toute mise en service.
 
 ## 2. Concept de l'application
 
@@ -61,3 +61,4 @@ Les membres peuvent commenter un ticket pour apporter des précisions ou suivre 
 Un visiteur découvre les projets et les tickets récents, puis peut filtrer les tickets d'un projet selon leur état ou leur priorité. Pour contribuer, il crée un compte et se connecte. Il peut alors ouvrir un ticket dans un projet ou répondre à un ticket existant. Le responsable du projet examine les nouveaux signalements, ajuste leur priorité et fait avancer leur état jusqu'à leur clôture.
 
 La première version se concentre sur ce parcours. Les pièces jointes, les notifications, les votes, les échanges en temps réel et les intégrations externes restent hors de son périmètre initial.
+
