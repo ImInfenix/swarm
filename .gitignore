@@ -34,3 +34,11 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+/.venv/
+/.tmp/
+/db.sqlite3
+/db.sqlite3-*
+/collected_static/
+/media/
+__pycache__/
+*.py[cod]
