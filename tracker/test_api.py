@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from .models import ApiToken
+from .models import ApiToken, TicketVote
 
 
 class ApiFlowTests(APITestCase):
@@ -46,6 +46,8 @@ class ApiFlowTests(APITestCase):
         self.assertEqual(project.data["slug"], "equipe-pro")
         ticket = self.client.post(reverse("api_project_tickets", args=["equipe-pro"]), {"title": "First issue", "description": "Details"}, format="json")
         self.assertEqual(ticket.status_code, 201, ticket.data)
+        self.assertEqual(ticket.data["vote_count"], 1)
+        self.assertTrue(TicketVote.objects.filter(ticket_id=ticket.data["id"], user__username="alice").exists())
         ticket_id = ticket.data["id"]
         comment = self.client.post(reverse("api_ticket_comments", args=[ticket_id]), {"body": "A reply"}, format="json")
         self.assertEqual(comment.status_code, 201, comment.data)

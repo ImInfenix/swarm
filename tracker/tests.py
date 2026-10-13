@@ -18,7 +18,7 @@ class TrackerFlowTests(TestCase):
         for name, args in (("home", []), ("project_list", []), ("project_detail", ["demo"]), ("ticket_list", []), ("ticket_detail", [self.ticket.pk])):
             self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200)
         response = self.client.get(reverse("project_detail", args=["demo"]), {"status": "resolved"})
-        self.assertNotContains(response, "First issue")
+        self.assertNotIn(self.ticket, response.context["page"].object_list)
         response = self.client.get(reverse("project_detail", args=["demo"]), {"status": "open"})
         self.assertContains(response, "First issue")
 

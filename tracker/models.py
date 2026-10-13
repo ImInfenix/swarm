@@ -127,6 +127,14 @@ class Ticket(models.Model):
     def get_absolute_url(self):
         return reverse("ticket_detail", kwargs={"pk": self.pk})
 
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.author_id is None:
+            return super().save(*args, **kwargs)
+        with transaction.atomic():
+            result = super().save(*args, **kwargs)
+            TicketVote.objects.create(ticket=self, user_id=self.author_id)
+            return result
+
 
 class Comment(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="comments")
