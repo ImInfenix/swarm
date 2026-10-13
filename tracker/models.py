@@ -68,7 +68,26 @@ class Project(models.Model):
                     raise
 
 
+class ProjectVersion(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="versions")
+    name = models.CharField(max_length=40)
+    released_on = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["project", "name"], name="unique_project_version_name")]
+
+    def __str__(self):
+        return self.name
+
+
 class Ticket(models.Model):
+    class Type(models.TextChoices):
+        UNCLASSIFIED = "unclassified", _("Unclassified")
+        BUG = "bug", _("Bug report")
+        FEATURE = "feature", _("Feature request")
+
     class Status(models.TextChoices):
         OPEN = "open", _("Open")
         IN_PROGRESS = "in_progress", _("In progress")
@@ -84,6 +103,15 @@ class Ticket(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tickets")
     title = models.CharField(max_length=160)
     description = models.TextField()
+    type = models.CharField(max_length=20, choices=Type.choices, default=Type.UNCLASSIFIED)
+    steps_to_reproduce = models.TextField(blank=True)
+    expected_result = models.TextField(blank=True)
+    actual_result = models.TextField(blank=True)
+    affected_version = models.ForeignKey(ProjectVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="affected_tickets")
+    target_version = models.ForeignKey(ProjectVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="target_tickets")
+    fixed_version = models.ForeignKey(ProjectVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="fixed_tickets")
+    duplicate_of = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="duplicates")
+    is_hidden = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.NORMAL)
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="tickets")
@@ -104,6 +132,7 @@ class Comment(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="comments")
     body = models.TextField()
+    is_hidden = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -111,6 +140,15 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment on ticket {self.ticket_id}"
+
+
+class TicketVote(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="votes")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ticket_votes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_vote")]
 
 
 class ApiToken(models.Model):
