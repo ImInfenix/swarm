@@ -26,7 +26,9 @@ Fill the selected database with example accounts, projects, versions, tickets, v
 .\.venv\Scripts\python.exe manage.py seed_demo
 ```
 
-The demonstration accounts cannot sign in. Clear the selected database, including all accounts and content, with:
+The demonstration accounts cannot sign in by default. To test notifications, triage, following tickets, and attachments on a local server with `DJANGO_DEBUG=1`, run `seed_demo --enable-login`. It prints a generated password for `demo-owner`, `demo-alex`, `demo-camille`, and `demo-jules`. The example data includes a bug screenshot, unread notifications, a request for information, a declined ticket, and planned and released versions. Running the seed again updates the same records without duplicating them.
+
+Clear the selected database, including all accounts, content, and stored ticket attachments, with:
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py reset_demo

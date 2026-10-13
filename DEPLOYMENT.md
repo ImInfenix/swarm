@@ -31,13 +31,14 @@ export DJANGO_ALLOWED_HOSTS='demo.example.org'
 export DJANGO_CSRF_TRUSTED_ORIGINS='https://demo.example.org'
 export SWARM_TRUSTED_PROXY_IPS='127.0.0.1'
 export SWARM_DB_PATH='/var/lib/swarm-demo/db.sqlite3'
-mkdir -p /var/lib/swarm-demo
+export SWARM_MEDIA_ROOT='/var/lib/swarm-demo/media'
+mkdir -p /var/lib/swarm-demo/media
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py seed_demo
 .venv/bin/gunicorn --bind 127.0.0.1:8001 config.wsgi:application
 ```
 
-Give the demo process write access to its database directory. Configure the HTTPS proxy to forward the demo hostname to port `8001`. Clear the demo database with `.venv/bin/python manage.py reset_demo`; this removes its accounts and content after confirmation.
+Give the demo process write access to its database and media directories. Configure the HTTPS proxy to forward the demo hostname to port `8001`. Clear the demo database with `.venv/bin/python manage.py reset_demo`; this removes its accounts, content, and stored attachments after confirmation.
 
 Limit login attempts and abusive requests at the reverse proxy. Swarm also limits registrations and logins by IP address, and contributions by account. The proxy must forward the real client address in `X-Forwarded-For` and be the only service able to reach Gunicorn. Set `SWARM_TRUSTED_PROXY_IPS` only to trusted proxy addresses; leave it unset if direct connections are possible. The local cache used for these limits is suitable for a single process. Multiple processes or servers require a shared cache or limits enforced by the reverse proxy.
 
