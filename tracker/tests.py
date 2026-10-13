@@ -33,7 +33,7 @@ class TrackerFlowTests(TestCase):
         response = self.client.post(reverse("project_create"), {"name": "Second", "description": "Another project"})
         self.assertRedirects(response, reverse("project_detail", args=["second"]))
         self.assertEqual(Project.objects.get(slug="second").owner, self.member)
-        response = self.client.post(reverse("ticket_create", args=["demo"]), {"title": "New issue", "description": "A description"})
+        response = self.client.post(reverse("ticket_create", args=["demo"]), {"type": "feature", "title": "New issue", "description": "A description"})
         created = Ticket.objects.get(title="New issue")
         self.assertRedirects(response, reverse("ticket_detail", args=[created.pk]))
         self.assertEqual(created.author, self.member)
@@ -59,10 +59,10 @@ class TrackerFlowTests(TestCase):
 
     def test_only_author_can_edit_ticket(self):
         self.client.force_login(self.owner)
-        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"title": "Changed", "description": "Changed"})
+        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"type": "unclassified", "title": "Changed", "description": "Changed"})
         self.assertEqual(response.status_code, 403)
         self.client.force_login(self.member)
-        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"title": "Changed", "description": "Changed"})
+        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"type": "unclassified", "title": "Changed", "description": "Changed"})
         self.assertRedirects(response, reverse("ticket_detail", args=[self.ticket.pk]))
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.title, "Changed")

@@ -1,5 +1,7 @@
 {% extends 'tracker/base.html' %}
+{% load static %}
 {% block title %}{{ title }} · Swarm{% endblock %}
 {% block content %}
-<div class="form-page"><p class="eyebrow">Swarm</p><h1>{{ title }}</h1><form class="panel form-panel" method="post">{% csrf_token %}{% include 'tracker/_form_fields.html' %}<button class="button" type="submit">{{ submit_label }}</button></form></div>
+<div class="form-page"><p class="eyebrow">Swarm</p><h1>{{ title }}</h1><form class="panel form-panel" method="post" {% if ticket_form %}data-ticket-form{% endif %}>{% csrf_token %}{% include 'tracker/_form_fields.html' %}<button class="button" type="submit">{{ submit_label }}</button></form></div>
 {% endblock %}
+{% block scripts %}{% if ticket_form %}<script src="{% static 'tracker/ticket-form.js' %}" defer></script>{% endif %}{% endblock %}

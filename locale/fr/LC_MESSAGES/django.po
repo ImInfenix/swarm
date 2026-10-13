@@ -1,9 +1,10 @@
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: Swarm\n"
+"Language: fr\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: fr\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #, python-format
@@ -218,8 +219,12 @@ msgstr "Publier"
 msgid "Recent tickets"
 msgstr "Tickets récents"
 
-msgid "Report an issue, talk with the community, and follow its progress in one clear place."
-msgstr "Signalez un problème, échangez avec la communauté et suivez son avancement au même endroit."
+msgid ""
+"Report an issue, talk with the community, and follow its progress in one "
+"clear place."
+msgstr ""
+"Signalez un problème, échangez avec la communauté et suivez son avancement "
+"au même endroit."
 
 msgid "Resolved"
 msgstr "Résolu"
@@ -251,8 +256,12 @@ msgstr "Swarm, un espace commun pour suivre les problèmes et leurs solutions."
 msgid "Swarm, home"
 msgstr "Swarm, accueil"
 
-msgid "The address is generated from the name (up to 10 characters). Use only letters, numbers, spaces, and hyphens."
-msgstr "L’adresse est générée à partir du nom (10 caractères au maximum). Utilisez uniquement des lettres, des chiffres, des espaces et des traits d’union."
+msgid ""
+"The address is generated from the name (up to 10 characters). Use only "
+"letters, numbers, spaces, and hyphens."
+msgstr ""
+"L’adresse est générée à partir du nom (10 caractères au maximum). Utilisez "
+"uniquement des lettres, des chiffres, des espaces et des traits d’union."
 
 msgid "The community"
 msgstr "La communauté"
@@ -309,7 +318,9 @@ msgid "Urgent"
 msgstr "Urgente"
 
 msgid "Use only letters, numbers, spaces, or hyphens."
-msgstr "Utilisez uniquement des lettres, des chiffres, des espaces ou des traits d’union."
+msgstr ""
+"Utilisez uniquement des lettres, des chiffres, des espaces ou des traits "
+"d’union."
 
 msgid "Welcome back"
 msgstr "Bon retour"
@@ -363,10 +374,102 @@ msgid "Signed out on all devices."
 msgstr "Tous les appareils ont été déconnectés."
 
 msgid "This ends every browser session and revokes all API tokens."
-msgstr "Cette action ferme toutes les sessions et révoque tous les jetons d’API."
+msgstr ""
+"Cette action ferme toutes les sessions et révoque tous les jetons d’API."
 
-msgid "Your account will be permanently deleted. This action cannot be undone."
-msgstr "Votre compte sera définitivement supprimé. Cette action est irréversible."
+msgid ""
+"Your account will be permanently deleted. This action cannot be undone."
+msgstr ""
+"Votre compte sera définitivement supprimé. Cette action est irréversible."
 
-msgid "Your published projects, tickets, and comments will remain visible without your account name."
-msgstr "Vos projets, tickets et commentaires publiés restent visibles sans votre nom de compte."
+msgid ""
+"Your published projects, tickets, and comments will remain visible without "
+"your account name."
+msgstr ""
+"Vos projets, tickets et commentaires publiés restent visibles sans votre nom"
+" de compte."
+
+msgid "Unclassified"
+msgstr "Non classé"
+
+msgid "Bug report"
+msgstr "Signalement de bug"
+
+msgid "Feature request"
+msgstr "Demande de fonctionnalité"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Steps to reproduce"
+msgstr "Étapes pour reproduire"
+
+msgid "Expected result"
+msgstr "Résultat attendu"
+
+msgid "Actual result"
+msgstr "Résultat obtenu"
+
+msgid "Affected version"
+msgstr "Version concernée"
+
+msgid "Target version"
+msgstr "Version visée"
+
+msgid "Released in version"
+msgstr "Livré dans la version"
+
+msgid "Choose a type"
+msgstr "Choisir un type"
+
+msgid "This field is required for bug reports."
+msgstr "Ce champ est requis pour les signalements de bug."
+
+msgid "Describe the problem or explain why this feature would be useful."
+msgstr ""
+"Décrivez le problème ou expliquez en quoi cette fonctionnalité serait utile."
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Versions"
+msgstr "Versions"
+
+msgid "Release date"
+msgstr "Date de sortie"
+
+msgid "Leave empty while this version is planned."
+msgstr "Laissez ce champ vide tant que cette version est prévue."
+
+msgid "This version already exists in the project."
+msgstr "Cette version existe déjà pour ce projet."
+
+msgid "Choose a version from this project."
+msgstr "Choisissez une version de ce projet."
+
+msgid "Choose a released version."
+msgstr "Choisissez une version publiée."
+
+msgid "Add version"
+msgstr "Ajouter une version"
+
+msgid "Edit version"
+msgstr "Modifier la version"
+
+msgid "Version created."
+msgstr "Version créée."
+
+msgid "Version updated."
+msgstr "Version modifiée."
+
+msgid "Released on"
+msgstr "Sortie le"
+
+msgid "Planned"
+msgstr "Prévue"
+
+msgid "No versions yet."
+msgstr "Aucune version pour le moment."
+
+msgid "This version is already marked as a released fix."
+msgstr "Cette version est déjà indiquée comme correction publiée."

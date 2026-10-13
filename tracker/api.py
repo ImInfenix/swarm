@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 from .api_auth import issue_api_token
 from .account import revoke_user_access
 from .forms import SignUpForm
-from .models import ApiToken, Comment, Project, Ticket, UserPreference, normalize_project_name
+from .models import ApiToken, Comment, Project, ProjectVersion, Ticket, UserPreference, normalize_project_name
 
 
 class ApiPagination(PageNumberPagination):
@@ -68,25 +68,79 @@ class ProjectWriteSerializer(StrictModelSerializer):
         return name
 
 
+class ProjectVersionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectVersion
+        fields = ("id", "name", "released_on", "created_at")
+
+
+class ProjectVersionWriteSerializer(StrictModelSerializer):
+    class Meta:
+        model = ProjectVersion
+        fields = ("name", "released_on")
+
+    def validate_name(self, value):
+        project = self.context["project"]
+        versions = ProjectVersion.objects.filter(project=project, name__iexact=value)
+        if self.instance:
+            versions = versions.exclude(pk=self.instance.pk)
+        if versions.exists():
+            raise ValidationError(_("This version already exists in the project."))
+        return value
+
+    def validate_released_on(self, value):
+        if self.instance and not value and self.instance.fixed_tickets.exists():
+            raise ValidationError(_("This version is already marked as a released fix."))
+        return value
+
+
 class TicketSerializer(serializers.ModelSerializer):
     project = serializers.CharField(source="project.slug", read_only=True)
     author = serializers.CharField(source="author.username", read_only=True)
 
     class Meta:
         model = Ticket
-        fields = ("id", "project", "title", "description", "status", "priority", "author", "created_at", "updated_at")
+        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "status", "priority", "author", "created_at", "updated_at")
 
 
 class TicketWriteSerializer(StrictModelSerializer):
     class Meta:
         model = Ticket
-        fields = ("title", "description")
+        fields = ("type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version")
+
+    def validate(self, attrs):
+        project = self.instance.project if self.instance else self.context["project"]
+        affected_version = attrs.get("affected_version", self.instance.affected_version if self.instance else None)
+        if affected_version and affected_version.project_id != project.pk:
+            raise ValidationError({"affected_version": _("Choose a version from this project.")})
+        ticket_type = attrs.get("type", self.instance.type if self.instance else Ticket.Type.UNCLASSIFIED)
+        if ticket_type == Ticket.Type.BUG:
+            errors = {}
+            for field in ("steps_to_reproduce", "expected_result", "actual_result"):
+                value = attrs.get(field, getattr(self.instance, field, ""))
+                if not value.strip():
+                    errors[field] = _("This field is required for bug reports.")
+            if errors:
+                raise ValidationError(errors)
+        else:
+            attrs.update({"steps_to_reproduce": "", "expected_result": "", "actual_result": "", "affected_version": None})
+        return attrs
 
 
 class TriageSerializer(StrictModelSerializer):
     class Meta:
         model = Ticket
-        fields = ("status", "priority")
+        fields = ("status", "priority", "target_version", "fixed_version")
+
+    def validate(self, attrs):
+        for field in ("target_version", "fixed_version"):
+            version = attrs.get(field)
+            if version and version.project_id != self.instance.project_id:
+                raise ValidationError({field: _("Choose a version from this project.")})
+        fixed_version = attrs.get("fixed_version")
+        if fixed_version and not fixed_version.released_on:
+            raise ValidationError({"fixed_version": _("Choose a released version.")})
+        return attrs
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -136,12 +190,15 @@ class ApiRoot(APIView):
                 {"method": "POST", "path": "/api/v1/projects/", "access": "token", "body": ["name", "description"], "description": "The slug is generated from the name and limited to 10 characters."},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/", "access": "public", "returns": ["id", "name", "slug", "description", "owner", "created_at", "updated_at"]},
                 {"method": "PATCH", "path": "/api/v1/projects/{slug}/", "access": "owner or staff", "body": ["name", "description"]},
+                {"method": "GET", "path": "/api/v1/projects/{slug}/versions/", "access": "public", "returns": ["id", "name", "released_on", "created_at"]},
+                {"method": "POST", "path": "/api/v1/projects/{slug}/versions/", "access": "owner or staff", "body": ["name", "released_on"]},
+                {"method": "PATCH", "path": "/api/v1/projects/{slug}/versions/{id}/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["status", "priority", "page", "page_size"], "returns": "paginated tickets"},
-                {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["title", "description"]},
+                {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "values": {"type": Ticket.Type.values}},
                 {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "project", "page", "page_size"], "returns": "paginated tickets"},
-                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "title", "description", "status", "priority", "author", "created_at", "updated_at"]},
-                {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["title", "description"]},
-                {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority"], "values": {"status": Ticket.Status.values, "priority": Ticket.Priority.values}},
+                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "status", "priority", "author", "created_at", "updated_at"]},
+                {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
+                {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version"], "values": {"status": Ticket.Status.values, "priority": Ticket.Priority.values}},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/comments/", "access": "public", "query": ["page", "page_size"], "returns": "paginated comments"},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/comments/", "access": "token", "body": ["body"]},
             ],
@@ -272,6 +329,36 @@ class ProjectDetailApi(APIView):
         return Response(ProjectSerializer(project).data)
 
 
+class ProjectVersionListApi(APIView):
+    def get_project(self, slug):
+        return get_object_or_404(Project.objects.select_related("owner"), slug=slug)
+
+    def get(self, request, slug):
+        project = self.get_project(slug)
+        return Response(ProjectVersionSerializer(project.versions.all(), many=True).data)
+
+    def post(self, request, slug):
+        project = self.get_project(slug)
+        if request.user != project.owner and not request.user.is_staff:
+            raise PermissionDenied()
+        serializer = ProjectVersionWriteSerializer(data=request.data, context={"project": project})
+        serializer.is_valid(raise_exception=True)
+        version = serializer.save(project=project)
+        return Response(ProjectVersionSerializer(version).data, status=status.HTTP_201_CREATED)
+
+
+class ProjectVersionDetailApi(APIView):
+    def patch(self, request, slug, pk):
+        project = get_object_or_404(Project.objects.select_related("owner"), slug=slug)
+        if request.user != project.owner and not request.user.is_staff:
+            raise PermissionDenied()
+        version = get_object_or_404(ProjectVersion, project=project, pk=pk)
+        serializer = ProjectVersionWriteSerializer(version, data=request.data, partial=True, context={"project": project})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(ProjectVersionSerializer(version).data)
+
+
 class ProjectTicketListApi(APIView):
     def get_project(self, slug):
         return get_object_or_404(Project, slug=slug)
@@ -291,7 +378,7 @@ class ProjectTicketListApi(APIView):
 
     def post(self, request, slug):
         project = self.get_project(slug)
-        serializer = TicketWriteSerializer(data=request.data)
+        serializer = TicketWriteSerializer(data=request.data, context={"project": project})
         serializer.is_valid(raise_exception=True)
         ticket = serializer.save(project=project, author=request.user)
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)

@@ -15,10 +15,10 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from .forms import CommentForm, ProjectEditForm, ProjectForm, SignUpForm, TicketForm, TriageForm
+from .forms import CommentForm, ProjectEditForm, ProjectForm, ProjectVersionForm, SignUpForm, TicketForm, TriageForm
 from .account import revoke_user_access
 from .middleware import LANGUAGE_COOKIE
-from .models import ApiToken, Project, Ticket, UserPreference
+from .models import ApiToken, Project, ProjectVersion, Ticket, UserPreference
 
 
 def home(request):
@@ -52,6 +52,7 @@ def project_detail(request, slug):
     page = Paginator(tickets, 20).get_page(request.GET.get("page"))
     return render(request, "tracker/project_detail.html", {
         "project": project,
+        "versions": project.versions.all(),
         "tickets": page,
         "page": page,
         "status": status,
@@ -86,6 +87,34 @@ def project_edit(request, slug):
     return render(request, "tracker/form.html", {"form": form, "title": _("Edit project"), "submit_label": _("Save changes")})
 
 
+@login_required
+def project_version_create(request, slug):
+    project = get_object_or_404(Project, slug=slug)
+    if request.user != project.owner and not request.user.is_staff:
+        raise PermissionDenied
+    form = ProjectVersionForm(request.POST or None)
+    form.instance.project = project
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, _("Version created."))
+        return redirect(project)
+    return render(request, "tracker/form.html", {"form": form, "title": _("Add version"), "submit_label": _("Add version")})
+
+
+@login_required
+def project_version_edit(request, slug, pk):
+    project = get_object_or_404(Project, slug=slug)
+    if request.user != project.owner and not request.user.is_staff:
+        raise PermissionDenied
+    version = get_object_or_404(ProjectVersion, project=project, pk=pk)
+    form = ProjectVersionForm(request.POST or None, instance=version)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, _("Version updated."))
+        return redirect(project)
+    return render(request, "tracker/form.html", {"form": form, "title": _("Edit version"), "submit_label": _("Save changes")})
+
+
 def ticket_list(request):
     tickets = Ticket.objects.select_related("project", "author").order_by("-created_at", "-pk")
     query = request.GET.get("q", "").strip()
@@ -103,7 +132,7 @@ def ticket_list(request):
 @login_required
 def ticket_create(request, slug):
     project = get_object_or_404(Project, slug=slug)
-    form = TicketForm(request.POST or None)
+    form = TicketForm(request.POST or None, project=project)
     if request.method == "POST" and form.is_valid():
         ticket = form.save(commit=False)
         ticket.project = project
@@ -111,7 +140,7 @@ def ticket_create(request, slug):
         ticket.save()
         messages.success(request, _("Ticket created."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket")})
+    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True})
 
 
 def ticket_detail(request, pk):
@@ -130,7 +159,7 @@ def ticket_edit(request, pk):
         form.save()
         messages.success(request, _("Ticket updated."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": _("Edit ticket"), "submit_label": _("Save changes")})
+    return render(request, "tracker/form.html", {"form": form, "title": _("Edit ticket"), "submit_label": _("Save changes"), "ticket_form": True})
 
 
 @login_required
