@@ -62,7 +62,7 @@ Each project has a name, a description, and an owner. Its page brings together i
 
 ### Tickets
 
-A ticket belongs to a project. A new contribution is either a **bug report** or a **feature request**. A bug includes reproduction steps, expected behavior, actual behavior, and the affected version if known. Tickets created before this distinction remain unclassified until they are reviewed.
+A ticket belongs to a project. Every contribution is either a **bug report** or a **feature request**. The type is required when creating a ticket through the web interface or API. A bug includes reproduction steps, expected behavior, actual behavior, and the affected version if known.
 
 Each signed-in member can add or remove one vote per ticket. Votes make popular requests more visible without replacing the priority set by the owner during triage. The owner can set a target version and later record the version that contains the fix. They can also close a duplicate and point it to the original ticket; existing votes on the duplicate then count toward the original without counting the same member twice.
 

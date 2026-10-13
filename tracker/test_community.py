@@ -158,7 +158,7 @@ class CommunityTicketTests(TestCase):
     def test_triage_dashboard_and_duplicate_redirect(self):
         original = Ticket.objects.create(project=self.project, author=self.member, type=Ticket.Type.FEATURE, title="Main request", description="Details")
         duplicate = Ticket.objects.create(project=self.project, author=self.member, type=Ticket.Type.FEATURE, title="Repeated request", description="Details")
-        foreign = Ticket.objects.create(project=self.other_project, author=self.member, title="Other project", description="Details")
+        foreign = Ticket.objects.create(project=self.other_project, author=self.member, type=Ticket.Type.FEATURE, title="Other project", description="Details")
         TicketVote.objects.create(ticket=duplicate, user=self.owner)
         dashboard_url = reverse("project_triage_dashboard", args=["game"])
         self.client.force_login(self.member)
@@ -189,7 +189,7 @@ class CommunityTicketTests(TestCase):
         self.assertEqual(client.patch(reverse("api_ticket_triage", args=[original.pk]), {"duplicate_of": duplicate.pk}, format="json").status_code, 400)
 
     def test_content_reports_and_hidden_content(self):
-        ticket = Ticket.objects.create(project=self.project, author=self.owner, title="Spam candidate", description="Details")
+        ticket = Ticket.objects.create(project=self.project, author=self.owner, type=Ticket.Type.FEATURE, title="Spam candidate", description="Details")
         comment = Comment.objects.create(ticket=ticket, author=self.owner, body="A comment")
         ticket_report_url = reverse("ticket_report", args=[ticket.pk])
         self.assertEqual(self.client.get(ticket_report_url).status_code, 302)
@@ -227,7 +227,7 @@ class CommunityTicketTests(TestCase):
         self.assertEqual(client_address(request), "127.0.0.1")
         with override_settings(SWARM_TRUSTED_PROXY_IPS=["127.0.0.1"]):
             self.assertEqual(client_address(request), "198.51.100.2")
-        ticket = Ticket.objects.create(project=self.project, author=self.owner, title="Idea", description="Details")
+        ticket = Ticket.objects.create(project=self.project, author=self.owner, type=Ticket.Type.FEATURE, title="Idea", description="Details")
         self.client.force_login(self.member)
         for _ in range(120):
             allow_action("vote", self.member.pk, 120, 3600)
@@ -235,7 +235,7 @@ class CommunityTicketTests(TestCase):
         self.assertFalse(TicketVote.objects.filter(ticket=ticket, user=self.member).exists())
 
     def test_admin_can_hide_content_and_resolve_reports(self):
-        ticket = Ticket.objects.create(project=self.project, author=self.member, title="Reported ticket", description="Details")
+        ticket = Ticket.objects.create(project=self.project, author=self.member, type=Ticket.Type.FEATURE, title="Reported ticket", description="Details")
         comment = Comment.objects.create(ticket=ticket, author=self.member, body="Reported comment")
         report = ContentReport.objects.create(reporter=self.owner, ticket=ticket, reason=ContentReport.Reason.SPAM)
         staff = User.objects.create_superuser(username="staff", email="staff@example.com", password="strong-password-123")

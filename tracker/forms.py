@@ -72,8 +72,6 @@ class TicketForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.project = project or self.instance.project
         types = [(Ticket.Type.BUG, Ticket.Type.BUG.label), (Ticket.Type.FEATURE, Ticket.Type.FEATURE.label)]
-        if self.instance.pk and self.instance.type == Ticket.Type.UNCLASSIFIED:
-            types.insert(0, (Ticket.Type.UNCLASSIFIED, Ticket.Type.UNCLASSIFIED.label))
         self.fields["type"].choices = [("", _("Choose a type")), *types]
         self.fields["affected_version"].queryset = ProjectVersion.objects.filter(project=self.project)
 

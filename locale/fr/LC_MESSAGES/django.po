@@ -392,9 +392,6 @@ msgstr ""
 "Vos projets, tickets et commentaires publiés restent visibles sans votre nom"
 " de compte."
 
-msgid "Unclassified"
-msgstr "Non classé"
-
 msgid "Bug report"
 msgstr "Signalement de bug"
 

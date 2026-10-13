@@ -44,7 +44,7 @@ class ApiFlowTests(APITestCase):
         project = self.client.post(reverse("api_project_list"), {"name": "Équipe Projet Long", "description": "A project"}, format="json")
         self.assertEqual(project.status_code, 201, project.data)
         self.assertEqual(project.data["slug"], "equipe-pro")
-        ticket = self.client.post(reverse("api_project_tickets", args=["equipe-pro"]), {"title": "First issue", "description": "Details"}, format="json")
+        ticket = self.client.post(reverse("api_project_tickets", args=["equipe-pro"]), {"type": "feature", "title": "First issue", "description": "Details"}, format="json")
         self.assertEqual(ticket.status_code, 201, ticket.data)
         self.assertEqual(ticket.data["vote_count"], 1)
         self.assertTrue(TicketVote.objects.filter(ticket_id=ticket.data["id"], user__username="alice").exists())
@@ -68,7 +68,7 @@ class ApiFlowTests(APITestCase):
         self.assertEqual(project.status_code, 201, project.data)
         reporter_token = self.signup("reporter")
         self.authenticate(reporter_token)
-        ticket = self.client.post(reverse("api_project_tickets", args=["demo"]), {"title": "Issue", "description": "Details"}, format="json")
+        ticket = self.client.post(reverse("api_project_tickets", args=["demo"]), {"type": "feature", "title": "Issue", "description": "Details"}, format="json")
         self.assertEqual(ticket.status_code, 201, ticket.data)
         ticket_url = reverse("api_ticket_detail", args=[ticket.data["id"]])
         triage_url = reverse("api_ticket_triage", args=[ticket.data["id"]])
@@ -95,7 +95,15 @@ class ApiFlowTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         response = self.client.post(reverse("api_project_list"), {"name": "Demo"}, format="json")
         self.assertEqual(response.status_code, 201)
-        response = self.client.post(reverse("api_project_tickets", args=["demo"]), {"description": "Missing title"}, format="json")
+        ticket_url = reverse("api_project_tickets", args=["demo"])
+        for data in (
+            {"title": "Missing type", "description": "Details"},
+            {"type": "unclassified", "title": "Legacy type", "description": "Details"},
+        ):
+            response = self.client.post(ticket_url, data, format="json")
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("type", response.data)
+        response = self.client.post(ticket_url, {"type": "feature", "description": "Missing title"}, format="json")
         self.assertEqual(response.status_code, 400)
         self.client.credentials()
         response = self.client.post(reverse("api_token"), {"username": "member", "password": "wrong"}, format="json")

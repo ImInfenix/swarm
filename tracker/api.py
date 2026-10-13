@@ -126,7 +126,7 @@ class TicketWriteSerializer(StrictModelSerializer):
         affected_version = attrs.get("affected_version", self.instance.affected_version if self.instance else None)
         if affected_version and affected_version.project_id != project.pk:
             raise ValidationError({"affected_version": _("Choose a version from this project.")})
-        ticket_type = attrs.get("type", self.instance.type if self.instance else Ticket.Type.UNCLASSIFIED)
+        ticket_type = attrs.get("type", self.instance.type if self.instance else None)
         if ticket_type == Ticket.Type.BUG:
             errors = {}
             for field in ("steps_to_reproduce", "expected_result", "actual_result"):
@@ -215,7 +215,7 @@ class ApiRoot(APIView):
                 {"method": "PATCH", "path": "/api/v1/projects/{slug}/versions/{id}/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/triage/", "access": "owner or staff", "returns": ["popular", "bugs", "unanswered"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
-                {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "values": {"type": Ticket.Type.values}},
+                {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "required": ["type", "title", "description"], "values": {"type": Ticket.Type.values}},
                 {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "project", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at"]},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},

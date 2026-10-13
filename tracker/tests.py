@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -12,7 +13,7 @@ class TrackerFlowTests(TestCase):
         self.owner = User.objects.create_user(username="owner", password="strong-test-password")
         self.member = User.objects.create_user(username="member", password="strong-test-password")
         self.project = Project.objects.create(name="Demo", slug="demo", description="Example", owner=self.owner)
-        self.ticket = Ticket.objects.create(project=self.project, title="First issue", description="Details", author=self.member)
+        self.ticket = Ticket.objects.create(project=self.project, type=Ticket.Type.FEATURE, title="First issue", description="Details", author=self.member)
 
     def test_public_pages_and_filters(self):
         for name, args in (("home", []), ("project_list", []), ("project_detail", ["demo"]), ("ticket_list", []), ("ticket_detail", [self.ticket.pk])):
@@ -46,6 +47,21 @@ class TrackerFlowTests(TestCase):
         self.ticket.refresh_from_db()
         self.assertGreaterEqual(self.ticket.updated_at, previous_activity)
 
+    def test_ticket_type_is_required_and_legacy_type_is_rejected(self):
+        self.client.force_login(self.member)
+        url = reverse("ticket_create", args=["demo"])
+        self.assertNotContains(self.client.get(url), 'value="unclassified"')
+        for data in (
+            {"title": "Missing type", "description": "Details"},
+            {"type": "unclassified", "title": "Legacy type", "description": "Details"},
+        ):
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("type", response.context["form"].errors)
+        with self.assertRaises(IntegrityError):
+            Ticket.objects.create(project=self.project, author=self.member, type="unclassified", title="Invalid type", description="Details")
+        self.assertEqual(Ticket.objects.count(), 1)
+
     def test_only_owner_can_triage_and_edit_project(self):
         self.client.force_login(self.member)
         self.assertEqual(self.client.post(reverse("ticket_triage", args=[self.ticket.pk]), {"status": "resolved", "priority": "urgent"}).status_code, 403)
@@ -61,10 +77,10 @@ class TrackerFlowTests(TestCase):
 
     def test_only_author_can_edit_ticket(self):
         self.client.force_login(self.owner)
-        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"type": "unclassified", "title": "Changed", "description": "Changed"})
+        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"type": "feature", "title": "Changed", "description": "Changed"})
         self.assertEqual(response.status_code, 403)
         self.client.force_login(self.member)
-        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"type": "unclassified", "title": "Changed", "description": "Changed"})
+        response = self.client.post(reverse("ticket_edit", args=[self.ticket.pk]), {"type": "feature", "title": "Changed", "description": "Changed"})
         self.assertRedirects(response, reverse("ticket_detail", args=[self.ticket.pk]))
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.title, "Changed")

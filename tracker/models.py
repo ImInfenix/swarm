@@ -84,7 +84,6 @@ class ProjectVersion(models.Model):
 
 class Ticket(models.Model):
     class Type(models.TextChoices):
-        UNCLASSIFIED = "unclassified", _("Unclassified")
         BUG = "bug", _("Bug report")
         FEATURE = "feature", _("Feature request")
 
@@ -103,7 +102,7 @@ class Ticket(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tickets")
     title = models.CharField(max_length=160)
     description = models.TextField()
-    type = models.CharField(max_length=20, choices=Type.choices, default=Type.UNCLASSIFIED)
+    type = models.CharField(max_length=20, choices=Type.choices)
     steps_to_reproduce = models.TextField(blank=True)
     expected_result = models.TextField(blank=True)
     actual_result = models.TextField(blank=True)
@@ -120,6 +119,7 @@ class Ticket(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [models.CheckConstraint(condition=models.Q(type__in=["bug", "feature"]), name="valid_ticket_type")]
 
     def __str__(self):
         return self.title

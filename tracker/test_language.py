@@ -12,7 +12,7 @@ class LanguageFlowTests(TestCase):
         cache.clear()
         self.user = User.objects.create_user(username="member", password="strong-test-password")
         self.project = Project.objects.create(name="Demo", slug="demo", owner=self.user)
-        self.ticket = Ticket.objects.create(project=self.project, author=self.user, title="Example", description="Details")
+        self.ticket = Ticket.objects.create(project=self.project, author=self.user, type=Ticket.Type.FEATURE, title="Example", description="Details")
 
     def test_english_is_default_and_french_is_available_to_visitors(self):
         response = self.client.get(reverse("home"))

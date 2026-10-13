@@ -13,7 +13,7 @@ class AccountFlowTests(TestCase):
         cache.clear()
         self.user = User.objects.create_user(username="member", email="member@example.com", password="old-strong-password-123")
         self.project = Project.objects.create(name="Demo", slug="demo", owner=self.user)
-        self.ticket = Ticket.objects.create(project=self.project, author=self.user, title="Issue", description="Details")
+        self.ticket = Ticket.objects.create(project=self.project, author=self.user, type=Ticket.Type.FEATURE, title="Issue", description="Details")
         self.comment = Comment.objects.create(ticket=self.ticket, author=self.user, body="A reply")
 
     def test_account_page_requires_login_and_shows_confirmation_dialog(self):
