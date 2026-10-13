@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -8,6 +9,9 @@ from .models import ApiToken
 
 
 class ApiFlowTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+
     def signup(self, username):
         response = self.client.post(reverse("api_signup"), {
             "username": username,

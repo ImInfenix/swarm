@@ -509,3 +509,66 @@ msgstr "Rechercher des tickets"
 
 msgid "Unknown vote action."
 msgstr "Action de vote inconnue."
+
+msgid "Duplicate of"
+msgstr "Doublon de"
+
+msgid "Vote on the original ticket"
+msgstr "Voter sur le ticket d’origine"
+
+msgid "Vote on the original ticket."
+msgstr "Votez sur le ticket d’origine."
+
+msgid "Choose a visible ticket from this project that is not a duplicate."
+msgstr "Choisissez un ticket visible de ce projet qui n’est pas un doublon."
+
+msgid "This ticket already has duplicates."
+msgstr "Ce ticket possède déjà des doublons."
+
+msgid "Triage dashboard"
+msgstr "Tableau de tri"
+
+msgid "New bug reports"
+msgstr "Nouveaux signalements de bugs"
+
+msgid "Without replies"
+msgstr "Sans réponse"
+
+msgid "Spam"
+msgstr "Spam"
+
+msgid "Abusive content"
+msgstr "Contenu abusif"
+
+msgid "Other"
+msgstr "Autre"
+
+msgid "Reason"
+msgstr "Motif"
+
+msgid "Too many requests. Try again later."
+msgstr "Trop de requêtes. Réessayez plus tard."
+
+msgid "Report received."
+msgstr "Signalement reçu."
+
+msgid "Send report"
+msgstr "Envoyer le signalement"
+
+msgid "Report ticket"
+msgstr "Signaler le ticket"
+
+msgid "Report comment"
+msgstr "Signaler le commentaire"
+
+msgid "Report"
+msgstr "Signaler"
+
+msgid "Check existing tickets before opening a new one."
+msgstr "Vérifiez les tickets existants avant d’en ouvrir un nouveau."
+
+msgid "Duplicate"
+msgstr "Doublon"
+
+msgid "Release date cannot be in the future."
+msgstr "La date de sortie ne peut pas être dans le futur."

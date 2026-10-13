@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import Client, TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -9,6 +10,7 @@ from .models import ApiToken, Comment, Project, Ticket
 
 class AccountFlowTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(username="member", email="member@example.com", password="old-strong-password-123")
         self.project = Project.objects.create(name="Demo", slug="demo", owner=self.user)
         self.ticket = Ticket.objects.create(project=self.project, author=self.user, title="Issue", description="Details")

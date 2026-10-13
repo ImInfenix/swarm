@@ -1,14 +1,17 @@
 from django.contrib.auth.models import User
-from django.test import Client, TestCase
+from django.core.cache import cache
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from .api_auth import issue_api_token
-from .models import Project, ProjectVersion, Ticket, TicketVote
+from .models import Comment, ContentReport, Project, ProjectVersion, Ticket, TicketVote
+from .rate_limits import allow_action, client_address
 
 
 class CommunityTicketTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.owner = User.objects.create_user(username="owner", password="strong-password-123")
         self.member = User.objects.create_user(username="member", password="strong-password-123")
         self.project = Project.objects.create(name="Game", slug="game", owner=self.owner)
@@ -34,6 +37,8 @@ class CommunityTicketTests(TestCase):
         version = ProjectVersion.objects.get(project=self.project)
         self.assertContains(self.client.get(reverse("project_detail", args=["game"])), "1.0")
         self.assertEqual(self.client.post(version_url, {"name": "1.0"}).status_code, 200)
+        self.assertEqual(ProjectVersion.objects.filter(project=self.project).count(), 1)
+        self.assertEqual(self.client.post(version_url, {"name": "2.0", "released_on": "2099-01-01"}).status_code, 200)
         self.assertEqual(ProjectVersion.objects.filter(project=self.project).count(), 1)
         self.client.force_login(self.member)
         ticket_url = reverse("ticket_create", args=["game"])
@@ -79,6 +84,7 @@ class CommunityTicketTests(TestCase):
         self.assertEqual(created.status_code, 201, created.data)
         version_id = created.data["id"]
         self.assertEqual(client.post(versions_url, {"name": "1.0"}, format="json").status_code, 400)
+        self.assertEqual(client.post(versions_url, {"name": "2.0", "released_on": "2099-01-01"}, format="json").status_code, 400)
         client.credentials(HTTP_AUTHORIZATION=f"Bearer {member_token}")
         self.assertEqual(client.get(versions_url).data[0]["id"], version_id)
         ticket_url = reverse("api_project_tickets", args=["game"])
@@ -145,3 +151,105 @@ class CommunityTicketTests(TestCase):
         self.assertEqual(client.get(reverse("api_ticket_list"), {"type": "feature", "version": version.pk}).data["count"], 0)
         self.assertEqual(client.delete(vote_url).data["vote_count"], 0)
         self.assertEqual(client.delete(vote_url).data["vote_count"], 0)
+
+    def test_triage_dashboard_and_duplicate_redirect(self):
+        original = Ticket.objects.create(project=self.project, author=self.member, type=Ticket.Type.FEATURE, title="Main request", description="Details")
+        duplicate = Ticket.objects.create(project=self.project, author=self.member, type=Ticket.Type.FEATURE, title="Repeated request", description="Details")
+        foreign = Ticket.objects.create(project=self.other_project, author=self.member, title="Other project", description="Details")
+        TicketVote.objects.create(ticket=original, user=self.member)
+        TicketVote.objects.create(ticket=duplicate, user=self.member)
+        TicketVote.objects.create(ticket=duplicate, user=self.owner)
+        dashboard_url = reverse("project_triage_dashboard", args=["game"])
+        self.client.force_login(self.member)
+        self.assertEqual(self.client.get(dashboard_url).status_code, 403)
+        self.client.force_login(self.owner)
+        dashboard = self.client.get(dashboard_url)
+        self.assertContains(dashboard, "Main request")
+        triage_url = reverse("ticket_triage", args=[duplicate.pk])
+        data = {"status": "open", "priority": "normal", "duplicate_of": foreign.pk}
+        self.assertEqual(self.client.post(triage_url, data).status_code, 200)
+        data["duplicate_of"] = original.pk
+        self.assertRedirects(self.client.post(triage_url, data), reverse("ticket_detail", args=[duplicate.pk]))
+        duplicate.refresh_from_db()
+        self.assertEqual(duplicate.status, Ticket.Status.CLOSED)
+        self.assertEqual(duplicate.duplicate_of, original)
+        self.assertContains(self.client.get(reverse("ticket_detail", args=[duplicate.pk])), "Vote on the original ticket")
+        self.assertContains(self.client.get(reverse("ticket_detail", args=[original.pk])), "▲ 2")
+        self.assertEqual(self.client.post(reverse("ticket_vote", args=[duplicate.pk]), {"action": "add"}).status_code, 400)
+        owner_token, _ = issue_api_token(self.owner)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {owner_token}")
+        api_dashboard = client.get(reverse("api_project_triage_dashboard", args=["game"]))
+        self.assertEqual(api_dashboard.status_code, 200)
+        self.assertIn("unanswered", api_dashboard.data)
+        self.assertEqual(client.put(reverse("api_ticket_vote", args=[duplicate.pk]), {}, format="json").status_code, 400)
+        self.assertEqual(client.delete(reverse("api_ticket_vote", args=[duplicate.pk])).data["vote_count"], 1)
+        self.assertEqual(client.get(reverse("api_ticket_detail", args=[original.pk])).data["vote_count"], 1)
+        self.assertEqual(client.patch(reverse("api_ticket_triage", args=[original.pk]), {"duplicate_of": duplicate.pk}, format="json").status_code, 400)
+
+    def test_content_reports_and_hidden_content(self):
+        ticket = Ticket.objects.create(project=self.project, author=self.owner, title="Spam candidate", description="Details")
+        comment = Comment.objects.create(ticket=ticket, author=self.owner, body="A comment")
+        ticket_report_url = reverse("ticket_report", args=[ticket.pk])
+        self.assertEqual(self.client.get(ticket_report_url).status_code, 302)
+        self.client.force_login(self.member)
+        self.assertContains(self.client.get(ticket_report_url), "Send report")
+        self.assertRedirects(self.client.post(ticket_report_url, {"reason": "spam", "details": "Repeated post"}), reverse("ticket_detail", args=[ticket.pk]))
+        self.assertRedirects(self.client.post(ticket_report_url, {"reason": "abuse"}), reverse("ticket_detail", args=[ticket.pk]))
+        self.assertEqual(ContentReport.objects.filter(ticket=ticket).count(), 1)
+        comment_report_url = reverse("comment_report", args=[comment.pk])
+        self.assertRedirects(self.client.post(comment_report_url, {"reason": "abuse"}), reverse("ticket_detail", args=[ticket.pk]))
+        self.assertEqual(ContentReport.objects.filter(comment=comment).count(), 1)
+        token, _ = issue_api_token(self.member)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        self.assertEqual(client.post(reverse("api_ticket_report", args=[ticket.pk]), {"reason": "spam"}, format="json").status_code, 200)
+        self.assertEqual(client.post(reverse("api_comment_report", args=[comment.pk]), {"reason": "abuse"}, format="json").status_code, 200)
+        self.assertEqual(client.post(reverse("api_ticket_report", args=[ticket.pk]), {"reason": "invalid"}, format="json").status_code, 400)
+        comment.is_hidden = True
+        comment.save(update_fields=["is_hidden"])
+        self.assertNotContains(self.client.get(reverse("ticket_detail", args=[ticket.pk])), "A comment")
+        self.assertEqual(client.get(reverse("api_ticket_comments", args=[ticket.pk])).data["count"], 0)
+        ticket.is_hidden = True
+        ticket.save(update_fields=["is_hidden"])
+        self.assertEqual(self.client.get(reverse("ticket_detail", args=[ticket.pk])).status_code, 404)
+        self.assertEqual(client.get(reverse("api_ticket_detail", args=[ticket.pk])).status_code, 404)
+        self.assertEqual(client.put(reverse("api_ticket_vote", args=[ticket.pk]), {}, format="json").status_code, 404)
+        self.assertRedirects(self.client.post(reverse("delete_account"), {"confirm": "delete"}), reverse("home"))
+        self.assertEqual(ContentReport.objects.filter(reporter__isnull=True).count(), 2)
+
+    def test_rate_limit_and_trusted_proxy_address(self):
+        self.assertTrue(allow_action("sample", "member", 2, 3600))
+        self.assertTrue(allow_action("sample", "member", 2, 3600))
+        self.assertFalse(allow_action("sample", "member", 2, 3600))
+        request = RequestFactory().get("/", REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR="spoofed, 198.51.100.2")
+        self.assertEqual(client_address(request), "127.0.0.1")
+        with override_settings(SWARM_TRUSTED_PROXY_IPS=["127.0.0.1"]):
+            self.assertEqual(client_address(request), "198.51.100.2")
+        ticket = Ticket.objects.create(project=self.project, author=self.owner, title="Idea", description="Details")
+        self.client.force_login(self.member)
+        for _ in range(120):
+            allow_action("vote", self.member.pk, 120, 3600)
+        self.assertEqual(self.client.post(reverse("ticket_vote", args=[ticket.pk]), {"action": "add"}).status_code, 429)
+        self.assertFalse(TicketVote.objects.exists())
+
+    def test_admin_can_hide_content_and_resolve_reports(self):
+        ticket = Ticket.objects.create(project=self.project, author=self.member, title="Reported ticket", description="Details")
+        comment = Comment.objects.create(ticket=ticket, author=self.member, body="Reported comment")
+        report = ContentReport.objects.create(reporter=self.owner, ticket=ticket, reason=ContentReport.Reason.SPAM)
+        staff = User.objects.create_superuser(username="staff", email="staff@example.com", password="strong-password-123")
+        self.client.force_login(staff)
+        actions = (
+            ("admin:tracker_ticket_changelist", "hide_tickets", ticket.pk),
+            ("admin:tracker_comment_changelist", "hide_comments", comment.pk),
+            ("admin:tracker_contentreport_changelist", "resolve_reports", report.pk),
+        )
+        for route, action, pk in actions:
+            response = self.client.post(reverse(route), {"action": action, "_selected_action": [pk]})
+            self.assertEqual(response.status_code, 302)
+        ticket.refresh_from_db()
+        comment.refresh_from_db()
+        report.refresh_from_db()
+        self.assertTrue(ticket.is_hidden)
+        self.assertTrue(comment.is_hidden)
+        self.assertIsNotNone(report.resolved_at)

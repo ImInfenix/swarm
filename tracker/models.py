@@ -151,6 +151,29 @@ class TicketVote(models.Model):
         constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_vote")]
 
 
+class ContentReport(models.Model):
+    class Reason(models.TextChoices):
+        SPAM = "spam", _("Spam")
+        ABUSE = "abuse", _("Abusive content")
+        OTHER = "other", _("Other")
+
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="content_reports")
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, null=True, blank=True, related_name="reports")
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, null=True, blank=True, related_name="reports")
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    details = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(condition=(models.Q(ticket__isnull=False, comment__isnull=True) | models.Q(ticket__isnull=True, comment__isnull=False)), name="report_exactly_one_target"),
+            models.UniqueConstraint(fields=["reporter", "ticket"], condition=models.Q(ticket__isnull=False), name="unique_ticket_report"),
+            models.UniqueConstraint(fields=["reporter", "comment"], condition=models.Q(comment__isnull=False), name="unique_comment_report"),
+        ]
+
+
 class ApiToken(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_tokens")
     digest = models.CharField(max_length=64, unique=True)

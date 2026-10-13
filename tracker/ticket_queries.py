@@ -1,8 +1,9 @@
 from urllib.parse import urlencode
 
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 
-from .models import Ticket
+from .models import Ticket, TicketVote
 
 
 SORT_ORDERS = {
@@ -10,6 +11,16 @@ SORT_ORDERS = {
     "popular": ("-vote_count", "-updated_at", "-pk"),
     "active": ("-updated_at", "-pk"),
 }
+
+
+def with_vote_counts(queryset):
+    totals = (TicketVote.objects.annotate(canonical_ticket_id=Coalesce("ticket__duplicate_of_id", "ticket_id"))
+              .filter(canonical_ticket_id=OuterRef("pk"))
+              .order_by()
+              .values("canonical_ticket_id")
+              .annotate(total=Count("user_id", distinct=True))
+              .values("total")[:1])
+    return queryset.annotate(vote_count=Coalesce(Subquery(totals, output_field=IntegerField()), Value(0)))
 
 
 def filter_tickets(queryset, params, allow_project=False):
@@ -38,6 +49,6 @@ def filter_tickets(queryset, params, allow_project=False):
         queryset = queryset.filter(project__slug=filters["project"])
     if filters["sort"] not in SORT_ORDERS:
         filters["sort"] = "newest"
-    queryset = queryset.annotate(vote_count=Count("votes")).order_by(*SORT_ORDERS[filters["sort"]])
+    queryset = with_vote_counts(queryset).order_by(*SORT_ORDERS[filters["sort"]])
     query_params = {"q" if key == "query" else key: value for key, value in filters.items() if value and not (key == "sort" and value == "newest")}
     return queryset, filters, urlencode(query_params)

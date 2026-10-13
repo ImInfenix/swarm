@@ -1,0 +1,10 @@
+{% extends 'tracker/base.html' %}
+{% load i18n %}
+{% block title %}{% translate 'Triage dashboard' %} · {{ project.name }} · Swarm{% endblock %}
+{% block content %}
+<nav class="breadcrumb" aria-label="{% translate 'Breadcrumb' %}"><a href="{{ project.get_absolute_url }}">{{ project.name }}</a><span>/</span><span>{% translate 'Triage dashboard' %}</span></nav>
+<div class="page-head"><div><p class="eyebrow">{{ project.name }}</p><h1>{% translate 'Triage dashboard' %}</h1></div></div>
+<section class="section"><div class="section-head"><h2>{% translate 'Most supported' %}</h2></div><div class="panel">{% include 'tracker/_ticket_rows.html' with tickets=popular %}</div></section>
+<section class="section"><div class="section-head"><h2>{% translate 'New bug reports' %}</h2></div><div class="panel">{% include 'tracker/_ticket_rows.html' with tickets=bugs %}</div></section>
+<section class="section"><div class="section-head"><h2>{% translate 'Without replies' %}</h2></div><div class="panel">{% include 'tracker/_ticket_rows.html' with tickets=unanswered %}</div></section>
+{% endblock %}

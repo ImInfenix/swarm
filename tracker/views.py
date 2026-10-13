@@ -2,12 +2,13 @@ from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.views import LoginView
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -15,16 +16,17 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from .forms import CommentForm, ProjectEditForm, ProjectForm, ProjectVersionForm, SignUpForm, TicketForm, TriageForm
+from .forms import CommentForm, ContentReportForm, ProjectEditForm, ProjectForm, ProjectVersionForm, SignUpForm, TicketForm, TriageForm
 from .account import revoke_user_access
 from .middleware import LANGUAGE_COOKIE
-from .models import ApiToken, Project, ProjectVersion, Ticket, TicketVote, UserPreference
-from .ticket_queries import filter_tickets
+from .models import ApiToken, Comment, ContentReport, Project, ProjectVersion, Ticket, TicketVote, UserPreference
+from .rate_limits import allow_action, client_address
+from .ticket_queries import filter_tickets, with_vote_counts
 
 
 def home(request):
     projects = Project.objects.select_related("owner").annotate(ticket_count=Count("tickets")).order_by("name")[:6]
-    tickets = Ticket.objects.filter(is_hidden=False).select_related("project", "author").annotate(vote_count=Count("votes")).order_by("-created_at", "-pk")[:8]
+    tickets = with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "author")).order_by("-created_at", "-pk")[:8]
     return render(request, "tracker/home.html", {"projects": projects, "tickets": tickets})
 
 
@@ -40,7 +42,7 @@ def project_list(request):
 def project_detail(request, slug):
     project = get_object_or_404(Project.objects.select_related("owner"), slug=slug)
     tickets, filters, filter_query = filter_tickets(project.tickets.filter(is_hidden=False).select_related("author", "project"), request.GET)
-    popular_tickets = project.tickets.filter(is_hidden=False, status__in=[Ticket.Status.OPEN, Ticket.Status.IN_PROGRESS], votes__isnull=False).select_related("project").annotate(vote_count=Count("votes")).order_by("-vote_count", "-updated_at", "-pk")[:3]
+    popular_tickets = with_vote_counts(project.tickets.filter(is_hidden=False, duplicate_of__isnull=True, status__in=[Ticket.Status.OPEN, Ticket.Status.IN_PROGRESS]).select_related("project")).filter(vote_count__gt=0).order_by("-vote_count", "-updated_at", "-pk")[:3]
     page = Paginator(tickets, 20).get_page(request.GET.get("page"))
     return render(request, "tracker/project_detail.html", {
         "project": project,
@@ -63,6 +65,8 @@ def project_detail(request, slug):
 
 @login_required
 def project_create(request):
+    if request.method == "POST" and not allow_action("project", request.user.pk, 5, 86400):
+        return HttpResponse(_("Too many requests. Try again later."), status=429)
     form = ProjectForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         project = form.save(commit=False)
@@ -114,6 +118,18 @@ def project_version_edit(request, slug, pk):
     return render(request, "tracker/form.html", {"form": form, "title": _("Edit version"), "submit_label": _("Save changes")})
 
 
+@login_required
+def project_triage_dashboard(request, slug):
+    project = get_object_or_404(Project, slug=slug)
+    if request.user != project.owner and not request.user.is_staff:
+        raise PermissionDenied
+    tickets = with_vote_counts(project.tickets.filter(is_hidden=False, duplicate_of__isnull=True).select_related("project"))
+    popular = tickets.filter(status__in=[Ticket.Status.OPEN, Ticket.Status.IN_PROGRESS], vote_count__gt=0).order_by("-vote_count", "-updated_at", "-pk")[:10]
+    bugs = tickets.filter(type=Ticket.Type.BUG, status=Ticket.Status.OPEN).order_by("-created_at", "-pk")[:10]
+    unanswered = tickets.filter(status=Ticket.Status.OPEN, comments__isnull=True).order_by("-created_at", "-pk")[:10]
+    return render(request, "tracker/triage_dashboard.html", {"project": project, "popular": popular, "bugs": bugs, "unanswered": unanswered})
+
+
 def ticket_list(request):
     tickets, filters, filter_query = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author"), request.GET, allow_project=True)
     page = Paginator(tickets, 20).get_page(request.GET.get("page"))
@@ -123,6 +139,8 @@ def ticket_list(request):
 @login_required
 def ticket_create(request, slug):
     project = get_object_or_404(Project, slug=slug)
+    if request.method == "POST" and not allow_action("ticket", request.user.pk, 10, 3600):
+        return HttpResponse(_("Too many requests. Try again later."), status=429)
     form = TicketForm(request.POST or None, project=project)
     if request.method == "POST" and form.is_valid():
         ticket = form.save(commit=False)
@@ -131,11 +149,11 @@ def ticket_create(request, slug):
         ticket.save()
         messages.success(request, _("Ticket created."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True})
+    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True, "related_project": project})
 
 
 def ticket_detail(request, pk):
-    ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author", "affected_version", "target_version", "fixed_version").annotate(vote_count=Count("votes")), pk=pk)
+    ticket = get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author", "affected_version", "target_version", "fixed_version", "duplicate_of")), pk=pk)
     comments = ticket.comments.filter(is_hidden=False).select_related("author")
     voted = request.user.is_authenticated and TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
     return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": CommentForm(), "voted": voted})
@@ -145,6 +163,10 @@ def ticket_detail(request, pk):
 @require_POST
 def ticket_vote(request, pk):
     ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+    if ticket.duplicate_of_id and request.POST.get("action") != "remove":
+        return HttpResponseBadRequest(_("Vote on the original ticket."))
+    if not allow_action("vote", request.user.pk, 120, 3600):
+        return HttpResponse(_("Too many requests. Try again later."), status=429)
     action = request.POST.get("action")
     if action == "add":
         TicketVote.objects.get_or_create(ticket=ticket, user=request.user)
@@ -184,7 +206,9 @@ def ticket_triage(request, pk):
 @login_required
 @require_POST
 def comment_create(request, pk):
-    ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).annotate(vote_count=Count("votes")), pk=pk)
+    ticket = get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False)), pk=pk)
+    if not allow_action("comment", request.user.pk, 30, 3600):
+        return HttpResponse(_("Too many requests. Try again later."), status=429)
     form = CommentForm(request.POST)
     if form.is_valid():
         comment = form.save(commit=False)
@@ -199,9 +223,34 @@ def comment_create(request, pk):
     return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form, "voted": voted}, status=400)
 
 
+def submit_content_report(request, target, ticket, title):
+    if request.method == "POST" and not allow_action("report", request.user.pk, 10, 3600):
+        return HttpResponse(_("Too many requests. Try again later."), status=429)
+    form = ContentReportForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        ContentReport.objects.get_or_create(reporter=request.user, defaults=form.cleaned_data, **target)
+        messages.success(request, _("Report received."))
+        return redirect(ticket)
+    return render(request, "tracker/form.html", {"form": form, "title": title, "submit_label": _("Send report")})
+
+
+@login_required
+def ticket_report(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+    return submit_content_report(request, {"ticket": ticket}, ticket, _("Report ticket"))
+
+
+@login_required
+def comment_report(request, pk):
+    comment = get_object_or_404(Comment.objects.select_related("ticket"), pk=pk, is_hidden=False, ticket__is_hidden=False)
+    return submit_content_report(request, {"comment": comment}, comment.ticket, _("Report comment"))
+
+
 def signup(request):
     if request.user.is_authenticated:
         return redirect("home")
+    if request.method == "POST" and not allow_action("signup", client_address(request), 5, 3600):
+        return HttpResponse(_("Too many requests. Try again later."), status=429)
     form = SignUpForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         user = form.save()
@@ -210,6 +259,13 @@ def signup(request):
         messages.success(request, _("Account created."))
         return redirect("home")
     return render(request, "tracker/form.html", {"form": form, "title": _("Create an account"), "submit_label": _("Sign up")})
+
+
+class RateLimitedLoginView(LoginView):
+    def post(self, request, *args, **kwargs):
+        if not allow_action("login", client_address(request), 20, 300):
+            return HttpResponse(_("Too many requests. Try again later."), status=429)
+        return super().post(request, *args, **kwargs)
 
 
 @login_required

@@ -6,3 +6,4 @@
 .password-panel{margin-top:20px}
 .version-list{padding:10px 24px}.version-row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid #edf1ef}.version-row:last-child{border-bottom:0}.version-row span{color:#66757c}.version-row a{margin-left:auto;color:#087b65;font-weight:700}.content-panel h3{margin:24px 0 8px}.form-field[hidden]{display:none}
 .vote-count{color:#087b65;font-weight:800;white-space:nowrap}.vote-panel{display:flex;align-items:center;gap:12px;margin:0 0 22px}.vote-panel strong{color:#087b65;font-size:1.2rem}.vote-panel form{margin:0}.vote-panel a{color:#087b65;font-weight:700}.vote-panel .button{min-height:36px;padding:7px 13px}.ticket-meta{flex-wrap:wrap}
+.comment-report{margin-left:auto;color:#087b65;font-size:.8rem;font-weight:700}.comment-head{flex-wrap:wrap}

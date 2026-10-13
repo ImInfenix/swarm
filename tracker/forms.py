@@ -1,9 +1,10 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from .models import Comment, Project, ProjectVersion, Ticket, normalize_project_name
+from .models import Comment, ContentReport, Project, ProjectVersion, Ticket, normalize_project_name
 
 
 class SignUpForm(UserCreationForm):
@@ -107,6 +108,8 @@ class ProjectVersionForm(forms.ModelForm):
 
     def clean_released_on(self):
         released_on = self.cleaned_data["released_on"]
+        if released_on and released_on > timezone.localdate():
+            raise forms.ValidationError(_("Release date cannot be in the future."))
         if self.instance.pk and not released_on and self.instance.fixed_tickets.exists():
             raise forms.ValidationError(_("This version is already marked as a released fix."))
         return released_on
@@ -115,14 +118,26 @@ class ProjectVersionForm(forms.ModelForm):
 class TriageForm(forms.ModelForm):
     class Meta:
         model = Ticket
-        fields = ("status", "priority", "target_version", "fixed_version")
-        labels = {"status": _("Status"), "priority": _("Priority"), "target_version": _("Target version"), "fixed_version": _("Released in version")}
+        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of")
+        labels = {"status": _("Status"), "priority": _("Priority"), "target_version": _("Target version"), "fixed_version": _("Released in version"), "duplicate_of": _("Duplicate of")}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         versions = ProjectVersion.objects.filter(project=self.instance.project)
         self.fields["target_version"].queryset = versions
         self.fields["fixed_version"].queryset = versions.filter(released_on__isnull=False)
+        self.fields["duplicate_of"].queryset = Ticket.objects.filter(project=self.instance.project, duplicate_of__isnull=True, is_hidden=False).exclude(pk=self.instance.pk)
+        self.fields["duplicate_of"].label_from_instance = lambda ticket: f"#{ticket.pk} {ticket.title}"
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("duplicate_of"):
+            if self.instance.duplicates.exists():
+                self.add_error("duplicate_of", _("This ticket already has duplicates."))
+            cleaned["status"] = Ticket.Status.CLOSED
+            cleaned["target_version"] = None
+            cleaned["fixed_version"] = None
+        return cleaned
 
 
 class CommentForm(forms.ModelForm):
@@ -131,3 +146,11 @@ class CommentForm(forms.ModelForm):
         fields = ("body",)
         labels = {"body": _("Your comment")}
         widgets = {"body": forms.Textarea(attrs={"rows": 5})}
+
+
+class ContentReportForm(forms.ModelForm):
+    class Meta:
+        model = ContentReport
+        fields = ("reason", "details")
+        labels = {"reason": _("Reason"), "details": _("Details")}
+        widgets = {"details": forms.Textarea(attrs={"rows": 4})}

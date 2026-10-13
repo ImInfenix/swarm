@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -7,6 +8,7 @@ from .models import Comment, Project, Ticket
 
 class TrackerFlowTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.owner = User.objects.create_user(username="owner", password="strong-test-password")
         self.member = User.objects.create_user(username="member", password="strong-test-password")
         self.project = Project.objects.create(name="Demo", slug="demo", description="Example", owner=self.owner)
