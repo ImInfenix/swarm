@@ -1,9 +1,18 @@
 {% extends 'tracker/base.html' %}
-{% load i18n %}
+{% load static i18n %}
 {% block title %}Tickets · Swarm{% endblock %}
 {% block content %}
 <div class="page-head"><div><p class="eyebrow">{% translate 'Tracking' %}</p><h1>{% translate 'Tickets' %}</h1><p class="muted">{% translate 'Issues reported across all projects.' %}</p></div></div>
-<form class="filter-bar inline-filters" method="get"><div class="grow"><label for="query">{% translate 'Search' %}</label><input id="query" type="search" name="q" value="{{ query }}" placeholder="{% translate 'Title, description, or project' %}"></div><div><label for="status">{% translate 'Status' %}</label><select id="status" name="status"><option value="">{% translate 'All statuses' %}</option>{% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><div><label for="type">{% translate 'Type' %}</label><select id="type" name="type"><option value="">{% translate 'All types' %}</option>{% for value, label in types %}<option value="{{ value }}" {% if ticket_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><div><label for="sort">{% translate 'Sort' %}</label><select id="sort" name="sort"><option value="newest" {% if sort == 'newest' %}selected{% endif %}>{% translate 'Newest' %}</option><option value="popular" {% if sort == 'popular' %}selected{% endif %}>{% translate 'Most supported' %}</option><option value="active" {% if sort == 'active' %}selected{% endif %}>{% translate 'Recently active' %}</option></select></div><button class="button" type="submit">{% translate 'Filter' %}</button></form>
-<div class="panel">{% include 'tracker/_ticket_rows.html' %}</div>
-{% include 'tracker/_pagination.html' %}
+<form class="filter-bar inline-filters" method="get" data-ticket-filters>
+  <div class="grow"><label for="query">{% translate 'Search' %}</label><input id="query" type="search" name="q" value="{{ query }}" placeholder="{% translate 'Title, description, or project' %}"></div>
+  <div><label for="status">{% translate 'Status' %}</label><select id="status" name="status"><option value="">{% translate 'All' %}</option>{% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="type">{% translate 'Type' %}</label><select id="type" name="type"><option value="">{% translate 'All' %}</option>{% for value, label in types %}<option value="{{ value }}" {% if ticket_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="sort">{% translate 'Sort' %}</label><select id="sort" name="sort"><option value="newest" {% if sort == 'newest' %}selected{% endif %}>{% translate 'Newest' %}</option><option value="popular" {% if sort == 'popular' %}selected{% endif %}>{% translate 'Most supported' %}</option><option value="active" {% if sort == 'active' %}selected{% endif %}>{% translate 'Recently active' %}</option></select></div>
+  <noscript><button class="button" type="submit">{% translate 'Filter' %}</button></noscript>
+</form>
+<div data-ticket-results>
+  <div class="panel">{% include 'tracker/_ticket_rows.html' %}</div>
+  {% include 'tracker/_pagination.html' %}
+</div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'tracker/ticket-filters.js' %}?v=2" defer></script>{% endblock %}

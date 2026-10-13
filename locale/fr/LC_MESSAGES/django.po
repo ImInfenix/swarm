@@ -26,6 +26,9 @@ msgstr "Compte créé."
 msgid "Add a comment"
 msgstr "Ajouter un commentaire"
 
+msgid "All"
+msgstr "Tout"
+
 msgid "All priorities"
 msgstr "Toutes les priorités"
 
