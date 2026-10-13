@@ -1,0 +1,14 @@
+{% extends 'tracker/base.html' %}
+{% load i18n %}
+{% block title %}{% translate 'Roadmap' %} · {{ project.name }} · Swarm{% endblock %}
+{% block content %}
+<nav class="breadcrumb" aria-label="{% translate 'Breadcrumb' %}"><a href="{% url 'project_list' %}">{% translate 'Projects' %}</a><span>/</span><a href="{{ project.get_absolute_url }}">{{ project.name }}</a><span>/</span><span>{% translate 'Roadmap' %}</span></nav>
+<div class="page-head"><div><p class="eyebrow">{{ project.name }}</p><h1>{% translate 'Roadmap' %}</h1><p class="lead">{% translate 'Target versions show what is planned. Released versions show what was delivered.' %}</p></div>{% if user.is_authenticated %}<a class="button" href="{% url 'ticket_create' project.slug %}">{% translate 'Open a ticket' %}</a>{% endif %}</div>
+<section class="section"><h2>{% translate 'Planned versions' %}</h2>
+  {% for version in planned_versions %}<div class="roadmap-version" id="version-{{ version.pk }}"><div class="section-head"><h3>{{ version.name }}</h3><span class="badge">{% translate 'Planned' %}</span></div><div class="panel">{% include 'tracker/_ticket_rows.html' with tickets=version.planned_tickets %}</div></div>{% empty %}<p class="empty">{% translate 'No planned versions yet.' %}</p>{% endfor %}
+</section>
+<section class="section"><h2>{% translate 'Released versions' %}</h2>
+  {% for version in released_versions %}<div class="roadmap-version" id="version-{{ version.pk }}"><div class="section-head"><h3>{{ version.name }}</h3><span class="muted">{% translate 'Released on' %} {{ version.released_on|date:"SHORT_DATE_FORMAT" }}</span></div><div class="panel">{% include 'tracker/_ticket_rows.html' with tickets=version.delivered_tickets %}</div></div>{% empty %}<p class="empty">{% translate 'No released versions yet.' %}</p>{% endfor %}
+</section>
+<section class="section"><h2>{% translate 'Awaiting a target version' %}</h2><p class="muted">{% translate 'These tickets have no future target version.' %}</p><div class="panel">{% include 'tracker/_ticket_rows.html' with tickets=backlog %}</div></section>
+{% endblock %}

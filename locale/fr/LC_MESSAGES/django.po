@@ -572,3 +572,108 @@ msgstr "Doublon"
 
 msgid "Release date cannot be in the future."
 msgstr "La date de sortie ne peut pas être dans le futur."
+
+msgid "Notifications"
+msgstr "Notifications"
+
+msgid "New comment"
+msgstr "Nouveau commentaire"
+
+msgid "Ticket updated"
+msgstr "Ticket mis à jour"
+
+msgid "Follow updates"
+msgstr "Suivre les mises à jour"
+
+msgid "Unfollow"
+msgstr "Ne plus suivre"
+
+msgid "Mark as read"
+msgstr "Marquer comme lu"
+
+msgid "No notifications yet."
+msgstr "Aucune notification pour le moment."
+
+msgid "Unknown subscription action."
+msgstr "Action d’abonnement inconnue."
+
+msgid "Possible existing tickets"
+msgstr "Tickets existants possibles"
+
+msgid "Screenshots"
+msgstr "Captures d’écran"
+
+msgid "Up to three images, 5 MB each."
+msgstr "Jusqu’à trois images de 5 Mo chacune."
+
+msgid "Remove"
+msgstr "Retirer"
+
+msgid "Images can only be attached to bug reports."
+msgstr "Les images ne peuvent être jointes qu’aux signalements de bugs."
+
+msgid "A bug report can have at most three images."
+msgstr "Un signalement de bug peut contenir au maximum trois images."
+
+msgid "Each image must be smaller than 5 MB."
+msgstr "Chaque image doit faire moins de 5 Mo."
+
+msgid "Upload a valid PNG, JPEG, GIF, or WebP image."
+msgstr "Envoyez une image PNG, JPEG, GIF ou WebP valide."
+
+msgid "Remove attachments before changing this ticket type."
+msgstr "Retirez les pièces jointes avant de changer le type du ticket."
+
+msgid "Choose an image."
+msgstr "Choisissez une image."
+
+msgid "Needs information"
+msgstr "Informations nécessaires"
+
+msgid "Declined"
+msgstr "Refusé"
+
+msgid "Cannot reproduce"
+msgstr "Impossible à reproduire"
+
+msgid "Closure reason"
+msgstr "Motif de clôture"
+
+msgid "Decision explanation"
+msgstr "Explication de la décision"
+
+msgid "Choose a closure reason."
+msgstr "Choisissez un motif de clôture."
+
+msgid "Explain this decision."
+msgstr "Expliquez cette décision."
+
+msgid "Explain what information is needed."
+msgstr "Précisez les informations nécessaires."
+
+msgid "Reason not recorded"
+msgstr "Motif non renseigné"
+
+msgid "Roadmap"
+msgstr "Feuille de route"
+
+msgid "Target versions show what is planned. Released versions show what was delivered."
+msgstr "Les versions cibles montrent ce qui est prévu. Les versions publiées montrent ce qui a été livré."
+
+msgid "Planned versions"
+msgstr "Versions prévues"
+
+msgid "No planned versions yet."
+msgstr "Aucune version prévue pour le moment."
+
+msgid "Released versions"
+msgstr "Versions publiées"
+
+msgid "No released versions yet."
+msgstr "Aucune version publiée pour le moment."
+
+msgid "Awaiting a target version"
+msgstr "En attente d’une version cible"
+
+msgid "These tickets have no future target version."
+msgstr "Ces tickets n’ont pas de version cible à venir."

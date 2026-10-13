@@ -4,11 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.views import LoginView
 from django.conf import settings
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -16,11 +16,14 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
+from .attachments import attach_files, validate_attachments
 from .forms import CommentForm, ContentReportForm, ProjectEditForm, ProjectForm, ProjectVersionForm, SignUpForm, TicketForm, TriageForm
 from .account import revoke_user_access
 from .middleware import LANGUAGE_COOKIE
-from .models import ApiToken, Comment, ContentReport, Project, ProjectVersion, Ticket, TicketVote, UserPreference
+from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketAttachment, TicketSubscription, TicketVote, UserPreference
+from .notifications import notify_subscribers
 from .rate_limits import allow_action, client_address
+from .roadmap import project_roadmap
 from .ticket_queries import filter_tickets, with_vote_counts
 
 
@@ -61,6 +64,12 @@ def project_detail(request, slug):
         "statuses": Ticket.Status.choices,
         "priorities": Ticket.Priority.choices,
     })
+
+
+def project_roadmap_view(request, slug):
+    project = get_object_or_404(Project, slug=slug)
+    planned_versions, released_versions, backlog = project_roadmap(project)
+    return render(request, "tracker/roadmap.html", {"project": project, "planned_versions": planned_versions, "released_versions": released_versions, "backlog": backlog})
 
 
 @login_required
@@ -143,20 +152,76 @@ def ticket_create(request, slug):
         return HttpResponse(_("Too many requests. Try again later."), status=429)
     form = TicketForm(request.POST or None, project=project)
     if request.method == "POST" and form.is_valid():
-        ticket = form.save(commit=False)
-        ticket.project = project
-        ticket.author = request.user
-        ticket.save()
-        messages.success(request, _("Ticket created."))
-        return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True, "related_project": project})
+        uploads = request.FILES.getlist("attachments")
+        try:
+            validate_attachments(form.cleaned_data["type"], uploads)
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            with transaction.atomic():
+                ticket = form.save(commit=False)
+                ticket.project = project
+                ticket.author = request.user
+                ticket.save()
+                attach_files(ticket, uploads, request.user)
+            messages.success(request, _("Ticket created."))
+            return redirect(ticket)
+    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True, "related_project": project, "suggestions_url": reverse("api_ticket_suggestions", args=[project.slug])})
 
 
 def ticket_detail(request, pk):
     ticket = get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author", "affected_version", "target_version", "fixed_version", "duplicate_of")), pk=pk)
     comments = ticket.comments.filter(is_hidden=False).select_related("author")
     voted = request.user.is_authenticated and TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
-    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": CommentForm(), "voted": voted})
+    subscribed = request.user.is_authenticated and TicketSubscription.objects.filter(ticket=ticket, user=request.user).exists()
+    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "attachments": ticket.attachments.all(), "comment_form": CommentForm(), "voted": voted, "subscribed": subscribed})
+
+
+def ticket_attachment_download(request, pk):
+    attachment = get_object_or_404(TicketAttachment.objects.select_related("ticket"), pk=pk, ticket__is_hidden=False)
+    try:
+        return FileResponse(attachment.file.open("rb"), as_attachment=True, filename=attachment.original_name, content_type=attachment.content_type)
+    except FileNotFoundError:
+        raise Http404
+
+
+@login_required
+@require_POST
+def ticket_attachment_delete(request, pk):
+    attachment = get_object_or_404(TicketAttachment.objects.select_related("ticket", "ticket__project"), pk=pk)
+    ticket = attachment.ticket
+    if request.user not in (ticket.author, ticket.project.owner) and not request.user.is_staff:
+        raise PermissionDenied
+    attachment.delete()
+    return redirect(ticket)
+
+
+@login_required
+@require_POST
+def ticket_subscription(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+    if request.POST.get("action") == "follow":
+        TicketSubscription.objects.get_or_create(ticket=ticket, user=request.user)
+    elif request.POST.get("action") == "unfollow":
+        TicketSubscription.objects.filter(ticket=ticket, user=request.user).delete()
+    else:
+        return HttpResponseBadRequest(_("Unknown subscription action."))
+    return redirect(ticket)
+
+
+@login_required
+def notification_list(request):
+    notifications = Notification.objects.filter(user=request.user, ticket__is_hidden=False).select_related("ticket", "actor")
+    page = Paginator(notifications, 20).get_page(request.GET.get("page"))
+    return render(request, "tracker/notifications.html", {"notifications": page, "page": page})
+
+
+@login_required
+@require_POST
+def notification_read(request, pk):
+    notification = get_object_or_404(Notification, pk=pk, user=request.user, ticket__is_hidden=False)
+    Notification.objects.filter(pk=notification.pk, read_at__isnull=True).update(read_at=timezone.now())
+    return redirect(notification.ticket)
 
 
 @login_required
@@ -184,9 +249,21 @@ def ticket_edit(request, pk):
         raise PermissionDenied
     form = TicketForm(request.POST or None, instance=ticket)
     if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, _("Ticket updated."))
-        return redirect(ticket)
+        uploads = request.FILES.getlist("attachments")
+        existing_count = ticket.attachments.count()
+        if form.cleaned_data["type"] != Ticket.Type.BUG and existing_count:
+            form.add_error("type", _("Remove attachments before changing this ticket type."))
+        else:
+            try:
+                validate_attachments(form.cleaned_data["type"], uploads, existing_count)
+            except ValidationError as error:
+                form.add_error(None, error)
+        if not form.errors:
+            with transaction.atomic():
+                form.save()
+                attach_files(ticket, uploads, request.user)
+            messages.success(request, _("Ticket updated."))
+            return redirect(ticket)
     return render(request, "tracker/form.html", {"form": form, "title": _("Edit ticket"), "submit_label": _("Save changes"), "ticket_form": True})
 
 
@@ -195,9 +272,13 @@ def ticket_triage(request, pk):
     ticket = get_object_or_404(Ticket.objects.select_related("project"), pk=pk)
     if request.user != ticket.project.owner and not request.user.is_staff:
         raise PermissionDenied
+    previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
     form = TriageForm(request.POST or None, instance=ticket)
     if request.method == "POST" and form.is_valid():
         form.save()
+        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
+        if current != previous:
+            notify_subscribers(ticket, request.user, Notification.Kind.TRIAGE)
         messages.success(request, _("Triage updated."))
         return redirect(ticket)
     return render(request, "tracker/form.html", {"form": form, "title": _("Triage ticket"), "submit_label": _("Save changes")})
@@ -216,11 +297,13 @@ def comment_create(request, pk):
         comment.author = request.user
         comment.save()
         Ticket.objects.filter(pk=ticket.pk).update(updated_at=timezone.now())
+        notify_subscribers(ticket, request.user, Notification.Kind.COMMENT)
         messages.success(request, _("Comment added."))
         return redirect(ticket)
     comments = ticket.comments.filter(is_hidden=False).select_related("author")
     voted = TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
-    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form, "voted": voted}, status=400)
+    subscribed = TicketSubscription.objects.filter(ticket=ticket, user=request.user).exists()
+    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "attachments": ticket.attachments.all(), "comment_form": form, "voted": voted, "subscribed": subscribed}, status=400)
 
 
 def submit_content_report(request, target, ticket, title):

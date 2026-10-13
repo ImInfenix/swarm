@@ -2,6 +2,8 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections
 
+from tracker.models import TicketAttachment
+
 
 class Command(BaseCommand):
     help = "Clear application data from the selected database while keeping its schema and migrations."
@@ -14,10 +16,13 @@ class Command(BaseCommand):
         database = options["database"]
         connection = connections[database]
         database_name = connection.settings_dict["NAME"]
-        self.stderr.write(self.style.WARNING(f"This will delete all data from database '{database}': {database_name}"))
+        self.stderr.write(self.style.WARNING(f"This will delete all data from database '{database}': {database_name}, including stored ticket attachments."))
         if not options["yes"]:
             answer = input("Type 'yes' to continue: ")
             if answer != "yes":
                 raise CommandError("Reset cancelled.")
+        attachments = [(attachment.file.storage, attachment.file.name) for attachment in TicketAttachment.objects.using(database).only("file") if attachment.file.name]
         call_command("flush", database=database, interactive=False, verbosity=options["verbosity"])
+        for storage, name in attachments:
+            storage.delete(name)
         self.stdout.write(self.style.SUCCESS("Database cleared."))

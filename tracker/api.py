@@ -1,23 +1,30 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import PasswordChangeForm
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.utils import translation
 from django.utils.translation import gettext as _
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled, ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .attachments import attach_files
 from .api_auth import issue_api_token
 from .account import revoke_user_access
 from .forms import SignUpForm
-from .models import ApiToken, Comment, ContentReport, Project, ProjectVersion, Ticket, TicketVote, UserPreference, normalize_project_name
+from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketAttachment, TicketSubscription, TicketVote, UserPreference, normalize_project_name
+from .notifications import notify_subscribers
+from .suggestions import similar_tickets
 from .rate_limits import allow_action, client_address
+from .roadmap import project_roadmap
 from .ticket_queries import filter_tickets, with_vote_counts
 
 
@@ -103,17 +110,29 @@ class ProjectVersionWriteSerializer(StrictModelSerializer):
         return value
 
 
+class TicketAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, attachment):
+        return reverse("ticket_attachment_download", args=[attachment.pk])
+
+    class Meta:
+        model = TicketAttachment
+        fields = ("id", "original_name", "content_type", "url", "created_at")
+
+
 class TicketSerializer(serializers.ModelSerializer):
     project = serializers.CharField(source="project.slug", read_only=True)
     author = serializers.CharField(source="author.username", read_only=True)
     vote_count = serializers.SerializerMethodField()
+    attachments = TicketAttachmentSerializer(many=True, read_only=True)
 
     def get_vote_count(self, ticket):
         return ticket.vote_count if hasattr(ticket, "vote_count") else with_vote_counts(Ticket.objects.filter(pk=ticket.pk)).values_list("vote_count", flat=True).get()
 
     class Meta:
         model = Ticket
-        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at")
+        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "closure_reason", "decision_note", "priority", "vote_count", "author", "attachments", "created_at", "updated_at")
 
 
 class TicketWriteSerializer(StrictModelSerializer):
@@ -136,6 +155,8 @@ class TicketWriteSerializer(StrictModelSerializer):
             if errors:
                 raise ValidationError(errors)
         else:
+            if self.instance and self.instance.attachments.exists():
+                raise ValidationError({"type": _("Remove attachments before changing this ticket type.")})
             attrs.update({"steps_to_reproduce": "", "expected_result": "", "actual_result": "", "affected_version": None})
         return attrs
 
@@ -143,7 +164,7 @@ class TicketWriteSerializer(StrictModelSerializer):
 class TriageSerializer(StrictModelSerializer):
     class Meta:
         model = Ticket
-        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of")
+        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of", "closure_reason", "decision_note")
 
     def validate(self, attrs):
         for field in ("target_version", "fixed_version"):
@@ -159,7 +180,26 @@ class TriageSerializer(StrictModelSerializer):
                 raise ValidationError({"duplicate_of": _("This ticket already has duplicates.")})
             if duplicate.pk == self.instance.pk or duplicate.project_id != self.instance.project_id or duplicate.duplicate_of_id or duplicate.is_hidden:
                 raise ValidationError({"duplicate_of": _("Choose a visible ticket from this project that is not a duplicate.")})
-            attrs.update({"status": Ticket.Status.CLOSED, "target_version": None, "fixed_version": None})
+            attrs.update({"status": Ticket.Status.CLOSED, "target_version": None, "fixed_version": None, "closure_reason": Ticket.ClosureReason.DUPLICATE})
+        else:
+            status_value = attrs.get("status", self.instance.status)
+            reason = attrs.get("closure_reason", self.instance.closure_reason)
+            note = attrs.get("decision_note", self.instance.decision_note)
+            if status_value == Ticket.Status.CLOSED:
+                errors = {}
+                if reason in ("", Ticket.ClosureReason.DUPLICATE):
+                    errors["closure_reason"] = _("Choose a closure reason.")
+                if not note.strip():
+                    errors["decision_note"] = _("Explain this decision.")
+                if errors:
+                    raise ValidationError(errors)
+                attrs.update({"target_version": None, "fixed_version": None})
+            elif status_value == Ticket.Status.NEEDS_INFO:
+                attrs["closure_reason"] = ""
+                if not note.strip():
+                    raise ValidationError({"decision_note": _("Explain what information is needed.")})
+            else:
+                attrs.update({"closure_reason": "", "decision_note": ""})
         return attrs
 
 
@@ -214,18 +254,26 @@ class ApiRoot(APIView):
                 {"method": "POST", "path": "/api/v1/projects/{slug}/versions/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "PATCH", "path": "/api/v1/projects/{slug}/versions/{id}/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/triage/", "access": "owner or staff", "returns": ["popular", "bugs", "unanswered"]},
+                {"method": "GET", "path": "/api/v1/projects/{slug}/roadmap/", "access": "public", "returns": ["planned_versions", "released_versions", "backlog"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "required": ["type", "title", "description"], "values": {"type": Ticket.Type.values}},
+                {"method": "GET", "path": "/api/v1/projects/{slug}/ticket-suggestions/", "access": "public", "query": ["q"], "returns": "up to five similar visible tickets"},
                 {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "project", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
-                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at"]},
+                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "closure_reason", "decision_note", "priority", "vote_count", "author", "attachments", "created_at", "updated_at"]},
+                {"method": "POST", "path": "/api/v1/tickets/{id}/attachments/", "access": "author or staff", "content_type": "multipart/form-data", "body": ["file"], "description": "Upload one bug screenshot, up to three per ticket."},
+                {"method": "DELETE", "path": "/api/v1/attachments/{id}/", "access": "ticket author, project owner or staff"},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
                 {"method": "PUT", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Add one vote for the authenticated user."},
                 {"method": "DELETE", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Remove the authenticated user's vote."},
+                {"method": "PUT", "path": "/api/v1/tickets/{id}/subscription/", "access": "token", "description": "Follow ticket updates."},
+                {"method": "DELETE", "path": "/api/v1/tickets/{id}/subscription/", "access": "token", "description": "Stop following ticket updates."},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/report/", "access": "token", "body": ["reason", "details"], "values": {"reason": ContentReport.Reason.values}},
-                {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version", "duplicate_of"], "values": {"status": Ticket.Status.values, "priority": Ticket.Priority.values}},
+                {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version", "duplicate_of", "closure_reason", "decision_note"], "values": {"status": Ticket.Status.values, "closure_reason": Ticket.ClosureReason.values, "priority": Ticket.Priority.values}},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/comments/", "access": "public", "query": ["page", "page_size"], "returns": "paginated comments"},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/comments/", "access": "token", "body": ["body"]},
                 {"method": "POST", "path": "/api/v1/comments/{id}/report/", "access": "token", "body": ["reason", "details"], "values": {"reason": ContentReport.Reason.values}},
+                {"method": "GET", "path": "/api/v1/notifications/", "access": "token", "query": ["page", "page_size"], "returns": "paginated notifications"},
+                {"method": "POST", "path": "/api/v1/notifications/{id}/read/", "access": "token", "description": "Mark a notification as read."},
             ],
             "errors": {"400": "Invalid input", "401": "Missing or invalid token", "403": "Insufficient permissions", "404": "Unknown resource", "429": "Rate limit exceeded"},
         })
@@ -399,13 +447,32 @@ class ProjectTriageDashboardApi(APIView):
         return Response({"popular": TicketSerializer(popular, many=True).data, "bugs": TicketSerializer(bugs, many=True).data, "unanswered": TicketSerializer(unanswered, many=True).data})
 
 
+class ProjectRoadmapApi(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        project = get_object_or_404(Project, slug=slug)
+        planned, released, backlog = project_roadmap(project)
+        return Response({
+            "planned_versions": [
+                {"id": version.pk, "name": version.name, "tickets": TicketSerializer(version.planned_tickets, many=True).data}
+                for version in planned
+            ],
+            "released_versions": [
+                {"id": version.pk, "name": version.name, "released_on": version.released_on, "tickets": TicketSerializer(version.delivered_tickets, many=True).data}
+                for version in released
+            ],
+            "backlog": TicketSerializer(backlog, many=True).data,
+        })
+
+
 class ProjectTicketListApi(APIView):
     def get_project(self, slug):
         return get_object_or_404(Project, slug=slug)
 
     def get(self, request, slug):
         project = self.get_project(slug)
-        tickets, _, _ = filter_tickets(project.tickets.filter(is_hidden=False).select_related("project", "author"), request.query_params)
+        tickets, _, _ = filter_tickets(project.tickets.filter(is_hidden=False).select_related("project", "author").prefetch_related("attachments"), request.query_params)
         paginator = ApiPagination()
         page = paginator.paginate_queryset(tickets, request, view=self)
         return paginator.get_paginated_response(TicketSerializer(page, many=True).data)
@@ -419,9 +486,23 @@ class ProjectTicketListApi(APIView):
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
 
 
+class TicketSuggestionApi(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        project = get_object_or_404(Project, slug=slug)
+        query = request.query_params.get("q", "").strip()[:160]
+        if len(query) < 3:
+            return Response([])
+        return Response([
+            {"id": ticket.pk, "title": ticket.title, "status": ticket.get_status_display(), "url": reverse("ticket_detail", args=[ticket.pk])}
+            for ticket in similar_tickets(project, query)
+        ])
+
+
 class TicketListApi(APIView):
     def get(self, request):
-        tickets, _, _ = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author"), request.query_params, allow_project=True)
+        tickets, _, _ = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author").prefetch_related("attachments"), request.query_params, allow_project=True)
         paginator = ApiPagination()
         page = paginator.paginate_queryset(tickets, request, view=self)
         return paginator.get_paginated_response(TicketSerializer(page, many=True).data)
@@ -429,7 +510,7 @@ class TicketListApi(APIView):
 
 class TicketDetailApi(APIView):
     def get_object(self, pk):
-        return get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "author")), pk=pk)
+        return get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "author").prefetch_related("attachments")), pk=pk)
 
     def get(self, request, pk):
         return Response(TicketSerializer(self.get_object(pk)).data)
@@ -442,6 +523,36 @@ class TicketDetailApi(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(TicketSerializer(ticket).data)
+
+
+class TicketAttachmentApi(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        ticket = get_object_or_404(Ticket.objects.select_related("project"), pk=pk, is_hidden=False)
+        if request.user != ticket.author and not request.user.is_staff:
+            raise PermissionDenied()
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            raise ValidationError({"file": _("Choose an image.")})
+        try:
+            attachment = attach_files(ticket, [uploaded], request.user)[0]
+        except DjangoValidationError as error:
+            raise ValidationError({"file": error.messages})
+        return Response(TicketAttachmentSerializer(attachment).data, status=status.HTTP_201_CREATED)
+
+
+class TicketAttachmentDetailApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        attachment = get_object_or_404(TicketAttachment.objects.select_related("ticket", "ticket__project"), pk=pk)
+        ticket = attachment.ticket
+        if request.user not in (ticket.author, ticket.project.owner) and not request.user.is_staff:
+            raise PermissionDenied()
+        attachment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TicketVoteApi(APIView):
@@ -471,9 +582,13 @@ class TicketTriageApi(APIView):
         ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author"), pk=pk)
         if request.user != ticket.project.owner and not request.user.is_staff:
             raise PermissionDenied()
+        previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
         serializer = TriageSerializer(ticket, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
+        if current != previous:
+            notify_subscribers(ticket, request.user, Notification.Kind.TRIAGE)
         return Response(TicketSerializer(ticket).data)
 
 
@@ -495,7 +610,44 @@ class CommentListApi(APIView):
         serializer.is_valid(raise_exception=True)
         comment = serializer.save(ticket=ticket, author=request.user)
         Ticket.objects.filter(pk=ticket.pk).update(updated_at=timezone.now())
+        notify_subscribers(ticket, request.user, Notification.Kind.COMMENT)
         return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+
+class TicketSubscriptionApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+        TicketSubscription.objects.get_or_create(ticket=ticket, user=request.user)
+        return Response({"subscribed": True})
+
+    def delete(self, request, pk):
+        ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+        TicketSubscription.objects.filter(ticket=ticket, user=request.user).delete()
+        return Response({"subscribed": False})
+
+
+class NotificationListApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifications = Notification.objects.filter(user=request.user, ticket__is_hidden=False).select_related("ticket", "actor")
+        paginator = ApiPagination()
+        page = paginator.paginate_queryset(notifications, request, view=self)
+        return paginator.get_paginated_response([
+            {"id": item.pk, "ticket": item.ticket_id, "ticket_title": item.ticket.title, "actor": item.actor.username if item.actor else None, "kind": item.kind, "created_at": item.created_at, "read_at": item.read_at}
+            for item in page
+        ])
+
+
+class NotificationReadApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk, user=request.user, ticket__is_hidden=False)
+        Notification.objects.filter(pk=notification.pk, read_at__isnull=True).update(read_at=timezone.now())
+        return Response({"read": True})
 
 
 class ContentReportWriteSerializer(StrictModelSerializer):

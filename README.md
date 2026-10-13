@@ -1,6 +1,6 @@
 # Swarm
 
-Swarm is a community feedback platform for game developers and other projects. Members report bugs, request features, support ideas with votes, and discuss solutions. Project owners organize this feedback and track the versions affected or targeted.
+Swarm is a community feedback platform for game developers and other projects. Members report bugs, request features, support ideas with votes, and discuss solutions. Project owners organize this feedback and track the versions affected or targeted. Ticket creation suggests possible duplicates, bug reports accept screenshots, and project roadmaps show planned and delivered work. Members can follow tickets and receive notifications on the site.
 
 The application provides a web interface and a JSON API. It is built with Django and uses SQLite. The technology choices and feature scope are described in [Architecture.md](Architecture.md).
 
@@ -26,7 +26,9 @@ Fill the selected database with example accounts, projects, versions, tickets, v
 .\.venv\Scripts\python.exe manage.py seed_demo
 ```
 
-The demonstration accounts cannot sign in. Clear the selected database, including all accounts and content, with:
+The demonstration accounts cannot sign in by default. To test notifications, triage, following tickets, and attachments on a local server with `DJANGO_DEBUG=1`, run `seed_demo --enable-login`. It prints a generated password for `demo-owner`, `demo-alex`, `demo-camille`, and `demo-jules`. The example data includes a bug screenshot, unread notifications, a request for information, a declined ticket, and planned and released versions. Running the seed again updates the same records without duplicating them.
+
+Clear the selected database, including all accounts, content, and stored ticket attachments, with:
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py reset_demo
@@ -36,6 +38,6 @@ The reset command asks for confirmation. Add `--yes` to skip the prompt. Set `SW
 
 ## API and deployment
 
-The API supports viewing and managing accounts, projects, tickets, and comments. `GET /api/v1/` returns JSON documentation covering its routes, fields, and access rules.
+The API supports accounts, projects, tickets, comments, notifications, image attachments, and roadmaps. `GET /api/v1/` returns JSON documentation covering its routes, fields, and access rules.
 
 For server installation, see [DEPLOYMENT.md](DEPLOYMENT.md).

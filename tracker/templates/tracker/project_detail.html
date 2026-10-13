@@ -11,6 +11,7 @@
     <p class="lead">{% if project.description %}{{ project.description|linebreaksbr }}{% else %}{% translate 'No description yet.' %}{% endif %}</p>
   </div>
   <div class="head-actions">
+    <a class="button button-outline" href="{% url 'project_roadmap' project.slug %}">{% translate 'Roadmap' %}</a>
     {% if user.is_authenticated %}<a class="button" href="{% url 'ticket_create' project.slug %}">{% translate 'Open a ticket' %}</a>{% endif %}
     {% if user == project.owner or user.is_staff %}<a class="button button-outline" href="{% url 'project_triage_dashboard' project.slug %}">{% translate 'Triage dashboard' %}</a><a class="button button-outline" href="{% url 'project_edit' project.slug %}">{% translate 'Edit project' %}</a><a class="button button-outline" href="{% url 'project_version_create' project.slug %}">{% translate 'Add version' %}</a>{% endif %}
   </div>

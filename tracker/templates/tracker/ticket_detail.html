@@ -6,9 +6,10 @@
 <nav class="breadcrumb" aria-label="{% translate 'Breadcrumb' %}"><a href="{% url 'project_list' %}">{% translate 'Projects' %}</a><span>/</span><a href="{{ ticket.project.get_absolute_url }}">{{ ticket.project.name }}</a><span>/</span><span>Ticket #{{ ticket.pk }}</span></nav>
 <div class="page-head">
   <div><p class="eyebrow">Ticket #{{ ticket.pk }} · {{ ticket.project.name }}</p><h1>{{ ticket.title }}</h1><p class="muted">{% translate 'Opened by' %} {{ ticket.author.username|default:deleted_account }} {% translate 'on' %} {{ ticket.created_at|date:"SHORT_DATETIME_FORMAT" }} · {% translate 'Updated on' %} {{ ticket.updated_at|date:"SHORT_DATETIME_FORMAT" }}</p></div>
-  <div class="head-actions">{% if user == ticket.author or user.is_staff %}<a class="button button-outline" href="{% url 'ticket_edit' ticket.pk %}">{% translate 'Edit' %}</a>{% endif %}{% if user == ticket.project.owner or user.is_staff %}<a class="button" href="{% url 'ticket_triage' ticket.pk %}">{% translate 'Triage' %}</a>{% endif %}<a class="button button-outline" href="{% url 'ticket_report' ticket.pk %}">{% translate 'Report ticket' %}</a></div>
+  <div class="head-actions">{% if user.is_authenticated %}<form method="post" action="{% url 'ticket_subscription' ticket.pk %}">{% csrf_token %}<button class="button button-outline" type="submit" name="action" value="{% if subscribed %}unfollow{% else %}follow{% endif %}">{% if subscribed %}{% translate 'Unfollow' %}{% else %}{% translate 'Follow updates' %}{% endif %}</button></form>{% endif %}{% if user == ticket.author or user.is_staff %}<a class="button button-outline" href="{% url 'ticket_edit' ticket.pk %}">{% translate 'Edit' %}</a>{% endif %}{% if user == ticket.project.owner or user.is_staff %}<a class="button" href="{% url 'ticket_triage' ticket.pk %}">{% translate 'Triage' %}</a>{% endif %}<a class="button button-outline" href="{% url 'ticket_report' ticket.pk %}">{% translate 'Report ticket' %}</a></div>
 </div>
 {% if ticket.duplicate_of %}<p class="callout">{% translate 'Duplicate of' %} <a href="{{ ticket.duplicate_of.get_absolute_url }}">#{{ ticket.duplicate_of.pk }} · {{ ticket.duplicate_of.title }}</a></p>{% endif %}
+{% if ticket.status == 'needs_info' or ticket.status == 'closed' %}<div class="callout"><strong>{% if ticket.status == 'needs_info' %}{% translate 'Needs information' %}{% elif ticket.closure_reason %}{{ ticket.get_closure_reason_display }}{% else %}{% translate 'Reason not recorded' %}{% endif %}</strong>{% if ticket.decision_note %}<div class="prose">{{ ticket.decision_note|linebreaks }}</div>{% endif %}</div>{% endif %}
 <div class="vote-panel">{% if ticket.duplicate_of %}<a href="{{ ticket.duplicate_of.get_absolute_url }}">{% translate 'Vote on the original ticket' %}</a>{% if voted %}<form method="post" action="{% url 'ticket_vote' ticket.pk %}">{% csrf_token %}<button class="button button-outline" type="submit" name="action" value="remove">{% translate 'Remove vote' %}</button></form>{% endif %}{% else %}<strong>▲ {{ ticket.vote_count|default:0 }}</strong><span>{% translate 'Votes' %}</span>{% if user.is_authenticated %}<form method="post" action="{% url 'ticket_vote' ticket.pk %}">{% csrf_token %}<button class="button button-outline" type="submit" name="action" value="{% if voted %}remove{% else %}add{% endif %}">{% if voted %}{% translate 'Remove vote' %}{% else %}{% translate 'Vote' %}{% endif %}</button></form>{% else %}<a href="{% url 'login' %}?next={{ request.path|urlencode }}">{% translate 'Log in to vote' %}</a>{% endif %}{% endif %}</div>
 <div class="detail-grid">
   <div>
@@ -19,6 +20,7 @@
         <h3>{% translate 'Steps to reproduce' %}</h3><div class="prose">{{ ticket.steps_to_reproduce|linebreaks }}</div>
         <h3>{% translate 'Expected result' %}</h3><div class="prose">{{ ticket.expected_result|linebreaks }}</div>
         <h3>{% translate 'Actual result' %}</h3><div class="prose">{{ ticket.actual_result|linebreaks }}</div>
+        {% if attachments %}<h3>{% translate 'Screenshots' %}</h3><ul class="attachment-list">{% for attachment in attachments %}<li><a href="{% url 'ticket_attachment_download' attachment.pk %}">{{ attachment.original_name }}</a>{% if user == ticket.author or user == ticket.project.owner or user.is_staff %}<form method="post" action="{% url 'ticket_attachment_delete' attachment.pk %}">{% csrf_token %}<button type="submit" class="text-button">{% translate 'Remove' %}</button></form>{% endif %}</li>{% endfor %}</ul>{% endif %}
       {% endif %}
     </article>
     <section class="section">
@@ -32,10 +34,11 @@
     <dl>
       <dt>{% translate 'Type' %}</dt><dd>{{ ticket.get_type_display }}</dd>
       <dt>{% translate 'Status' %}</dt><dd><span class="badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span></dd>
+      {% if ticket.closure_reason %}<dt>{% translate 'Closure reason' %}</dt><dd>{{ ticket.get_closure_reason_display }}</dd>{% endif %}
       <dt>{% translate 'Priority' %}</dt><dd>{{ ticket.get_priority_display }}</dd>
       {% if ticket.affected_version %}<dt>{% translate 'Affected version' %}</dt><dd>{{ ticket.affected_version.name }}</dd>{% endif %}
-      {% if ticket.target_version %}<dt>{% translate 'Target version' %}</dt><dd>{{ ticket.target_version.name }}</dd>{% endif %}
-      {% if ticket.fixed_version %}<dt>{% translate 'Released in version' %}</dt><dd>{{ ticket.fixed_version.name }}</dd>{% endif %}
+      {% if ticket.target_version %}<dt>{% translate 'Target version' %}</dt><dd><a href="{% url 'project_roadmap' ticket.project.slug %}#version-{{ ticket.target_version.pk }}">{{ ticket.target_version.name }}</a></dd>{% endif %}
+      {% if ticket.fixed_version %}<dt>{% translate 'Released in version' %}</dt><dd><a href="{% url 'project_roadmap' ticket.project.slug %}#version-{{ ticket.fixed_version.pk }}">{{ ticket.fixed_version.name }}</a></dd>{% endif %}
       {% if ticket.duplicate_of %}<dt>{% translate 'Duplicate of' %}</dt><dd><a href="{{ ticket.duplicate_of.get_absolute_url }}">#{{ ticket.duplicate_of.pk }}</a></dd>{% endif %}
       <dt>{% translate 'Project' %}</dt><dd><a href="{{ ticket.project.get_absolute_url }}">{{ ticket.project.name }}</a></dd>
       <dt>{% translate 'Owner' %}</dt><dd>{{ ticket.project.owner.username|default:deleted_account }}</dd>

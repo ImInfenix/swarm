@@ -1,11 +1,15 @@
 import hashlib
 import re
 import unicodedata
+import uuid
 from itertools import count
+from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -90,8 +94,15 @@ class Ticket(models.Model):
     class Status(models.TextChoices):
         OPEN = "open", _("Open")
         IN_PROGRESS = "in_progress", _("In progress")
+        NEEDS_INFO = "needs_info", _("Needs information")
         RESOLVED = "resolved", _("Resolved")
         CLOSED = "closed", _("Closed")
+
+    class ClosureReason(models.TextChoices):
+        DECLINED = "declined", _("Declined")
+        CANNOT_REPRODUCE = "cannot_reproduce", _("Cannot reproduce")
+        DUPLICATE = "duplicate", _("Duplicate")
+        OTHER = "other", _("Other")
 
     class Priority(models.TextChoices):
         LOW = "low", _("Low")
@@ -112,6 +123,8 @@ class Ticket(models.Model):
     duplicate_of = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="duplicates")
     is_hidden = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    closure_reason = models.CharField(max_length=20, choices=ClosureReason.choices, blank=True, default="")
+    decision_note = models.TextField(blank=True)
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.NORMAL)
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="tickets")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -133,6 +146,7 @@ class Ticket(models.Model):
         with transaction.atomic():
             result = super().save(*args, **kwargs)
             TicketVote.objects.create(ticket=self, user_id=self.author_id)
+            TicketSubscription.objects.create(ticket=self, user_id=self.author_id)
             return result
 
 
@@ -157,6 +171,55 @@ class TicketVote(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_vote")]
+
+
+class TicketSubscription(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="subscriptions")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ticket_subscriptions")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_subscription")]
+
+
+def ticket_attachment_path(instance, filename):
+    extension = Path(filename).suffix.lower()
+    return f"ticket-attachments/{instance.ticket_id}/{uuid.uuid4().hex}{extension}"
+
+
+class TicketAttachment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to=ticket_attachment_path)
+    original_name = models.CharField(max_length=120)
+    content_type = models.CharField(max_length=40)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="ticket_attachments")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+
+@receiver(post_delete, sender=TicketAttachment)
+def remove_ticket_attachment_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
+
+
+class Notification(models.Model):
+    class Kind(models.TextChoices):
+        COMMENT = "comment", _("New comment")
+        TRIAGE = "triage", _("Ticket updated")
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="notifications")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="sent_notifications")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [models.Index(fields=["user", "read_at", "-created_at"], name="notification_inbox_idx")]
 
 
 class ContentReport(models.Model):
