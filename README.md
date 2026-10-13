@@ -1,12 +1,12 @@
 # Swarm
 
-Swarm est un espace communautaire de suivi de problèmes organisé par projets. Les visiteurs consultent les signalements et leurs discussions. Les membres créent des projets, ouvrent des tickets et échangent sur leur résolution. Le responsable d'un projet peut modifier sa présentation et gérer l'état et la priorité de ses tickets.
+Swarm is a community feedback platform for game developers and other projects. Members report bugs, request features, support ideas with votes, and discuss solutions. Project owners organize this feedback and track the versions affected or targeted.
 
-L'application réunit une interface web et une API JSON. Elle est construite avec Django et utilise SQLite. Les choix techniques et le périmètre fonctionnel sont décrits dans [Architecture.md](Architecture.md).
+The application provides a web interface and a JSON API. It is built with Django and uses SQLite. The technology choices and feature scope are described in [Architecture.md](Architecture.md).
 
-## Démarrage local
+## Local setup
 
-Python 3.10 ou plus récent est nécessaire. Sous Windows, depuis la racine du dépôt :
+Python 3.10 or newer is required. On Windows, run these commands from the repository root:
 
 ```powershell
 python -m venv .venv
@@ -16,10 +16,10 @@ $env:DJANGO_DEBUG = '1'
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Le site est alors accessible sur <http://127.0.0.1:8000/>. Les tests s'exécutent avec `.\.venv\Scripts\python.exe manage.py test`.
+The site is then available at <http://127.0.0.1:8000/>. Run the tests with `.\.venv\Scripts\python.exe manage.py test`.
 
-## API et déploiement
+## API and deployment
 
-L'API permet de consulter et de gérer les comptes, projets, tickets et commentaires. `GET /api/v1/` renvoie sa documentation JSON, notamment les routes, les champs et les droits d'accès.
+The API supports viewing and managing accounts, projects, tickets, and comments. `GET /api/v1/` returns JSON documentation covering its routes, fields, and access rules.
 
-Pour installer Swarm sur un serveur, voir [DEPLOYMENT.md](DEPLOYMENT.md).
+For server installation, see [DEPLOYMENT.md](DEPLOYMENT.md).

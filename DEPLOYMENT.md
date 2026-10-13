@@ -1,6 +1,6 @@
-# Déploiement auto-hébergé
+# Self-hosted deployment
 
-Swarm peut fonctionner sur un serveur Linux avec Python 3.10 ou plus récent. L'exemple ci-dessous utilise Gunicorn derrière un serveur HTTPS et place la base SQLite dans un dossier persistant.
+Swarm can run on a Linux server with Python 3.10 or newer. The example below uses Gunicorn behind an HTTPS reverse proxy and stores the SQLite database in a persistent directory.
 
 ```sh
 python3 -m venv .venv
@@ -9,6 +9,7 @@ export DJANGO_DEBUG='0'
 export DJANGO_SECRET_KEY='replace-with-a-long-random-secret'
 export DJANGO_ALLOWED_HOSTS='swarm.example.org'
 export DJANGO_CSRF_TRUSTED_ORIGINS='https://swarm.example.org'
+export SWARM_TRUSTED_PROXY_IPS='127.0.0.1'
 export SWARM_DB_PATH='/var/lib/swarm/db.sqlite3'
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py collectstatic --noinput
@@ -16,10 +17,10 @@ export SWARM_DB_PATH='/var/lib/swarm/db.sqlite3'
 .venv/bin/gunicorn --bind 127.0.0.1:8000 config.wsgi:application
 ```
 
-Créer le dossier de la base avant les migrations et donner l'accès en écriture à l'utilisateur qui exécute Swarm. Conserver `DJANGO_DEBUG` absent, ou différent de `1`, en production. Ne jamais exposer `runserver` sur Internet. Faire tourner Gunicorn comme un service, lié à `127.0.0.1`, et placer un serveur HTTPS devant lui. Ce serveur doit rediriger HTTP vers HTTPS, transmettre les requêtes à `127.0.0.1:8000`, servir `/static/` depuis `collected_static/` et envoyer un en-tête HSTS après validation du fonctionnement HTTPS. Les avertissements HTTPS de `check --deploy` doivent être couverts par ce serveur frontal ou par des réglages Django adaptés. Vérifier la redirection HTTP, l'en-tête HSTS et l'absence de pages de débogage avant l'ouverture publique. Remplacer le domaine d'exemple dans `DJANGO_ALLOWED_HOSTS` et `DJANGO_CSRF_TRUSTED_ORIGINS`.
+Create the database directory before running migrations and give the Swarm process write access to it. In production, leave `DJANGO_DEBUG` unset or set it to a value other than `1`. Never expose `runserver` to the Internet. Run Gunicorn as a service bound to `127.0.0.1`, with an HTTPS reverse proxy in front of it. The proxy must redirect HTTP to HTTPS, forward requests to `127.0.0.1:8000`, serve `/static/` from `collected_static/`, and send an HSTS header once HTTPS has been verified. Address the HTTPS warnings from `check --deploy` through the reverse proxy or appropriate Django settings. Verify the HTTP redirect, HSTS header, and absence of debug pages before public access. Replace the example domain in `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS`.
 
-Limiter les tentatives de connexion et les requêtes abusives sur le serveur frontal. Une protection supplémentaire par compte est nécessaire si des attaques réparties sur plusieurs adresses doivent être prises en charge ; le simple filtrage par adresse IP ne suffit pas dans ce cas.
+Limit login attempts and abusive requests at the reverse proxy. Swarm also limits registrations and logins by IP address, and contributions by account. The proxy must forward the real client address in `X-Forwarded-For` and be the only service able to reach Gunicorn. Set `SWARM_TRUSTED_PROXY_IPS` only to trusted proxy addresses; leave it unset if direct connections are possible. The local cache used for these limits is suitable for a single process. Multiple processes or servers require a shared cache or limits enforced by the reverse proxy.
 
-Exécuter `migrate` et `collectstatic` après chaque mise à jour. Sauvegarder régulièrement le fichier SQLite par l'API de sauvegarde SQLite ou avec un outil qui garantit une copie cohérente pendant l'utilisation. Tester la restauration. Ne pas placer la base sur un partage réseau.
+Run `migrate` and `collectstatic` after each update. Back up the SQLite file regularly using the SQLite backup API or another tool that guarantees a consistent copy while the application is running. Test restoration. Do not put the database on a network share.
 
-Les jetons d'API et les mots de passe doivent transiter par HTTPS. Le serveur local lancé en HTTP sert uniquement à la prévisualisation avec des identifiants de test. Les appels directs à l'API depuis une page hébergée sur un autre domaine nécessitent une configuration CORS supplémentaire.
+API tokens and passwords must travel over HTTPS. The local HTTP server is only for previews with test credentials. Direct API calls from a page hosted on another domain require additional CORS configuration.

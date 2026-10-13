@@ -1,74 +1,77 @@
-# Architecture de Swarm
+# Swarm architecture
 
-Ce document décrit la version de Swarm à construire. Le prototype de 2022, conservé sur la branche `prototype_2022`, utilise Next.js, React, Prisma et PostgreSQL ; ces éléments ne font pas partie de l'architecture retenue ci-dessous.
+This document describes the intended architecture of Swarm. The 2022 prototype, preserved on the `prototype_2022` branch, uses Next.js, React, Prisma, and PostgreSQL; those technologies are not part of the architecture chosen below.
 
-## 1. Technologies retenues et raisons
+## 1. Technology choices and rationale
 
-### Application : Python et Django 5.2
+### Application: Python and Django 5.2
 
-Django fournit dans une seule application le routage, le rendu des pages, les formulaires, la validation, la gestion des comptes, les permissions, l'accès aux données et les migrations. Cette intégration limite le nombre de composants à assembler et à maintenir pour un outil principalement fondé sur des listes, des formulaires et des échanges entre utilisateurs.
+Django provides routing, page rendering, forms, validation, account management, permissions, data access, and migrations in one application. This integration reduces the number of components to assemble and maintain for a tool mainly built around lists, forms, and discussions.
 
-La série 5.2 est compatible avec Python 3.10, déjà installé dans l'environnement de développement. Les dépendances seront fixées à des versions précises pour rendre l'installation reproductible.
+The 5.2 release series supports Python 3.10, which is already installed in the development environment. Dependencies will be pinned to specific versions for reproducible installation.
 
-### Données : SQLite
+### Data: SQLite
 
-SQLite conserve les données dans un fichier local. Une instance de Swarm sur un seul serveur peut ainsi fonctionner sans service de base de données supplémentaire, ce qui simplifie le développement, l'installation et l'auto-hébergement.
+SQLite stores data in a local file. A single Swarm instance on one server can therefore run without a separate database service, simplifying development, installation, and self-hosting.
 
-Le fichier sera placé dans un emplacement persistant, hors des fichiers remplacés lors d'un déploiement. Les sauvegardes devront produire une copie cohérente d'une base en cours d'utilisation et une restauration devra être testée. Le fichier ne sera pas partagé entre plusieurs serveurs au moyen d'un système de fichiers réseau.
+The database file will live in a persistent location outside files replaced during deployment. Backups must produce a consistent copy of a database in use, and restoration must be tested. The file will not be shared between servers over a network file system.
 
-Le modèle de données utilisera autant que possible les fonctions communes de l'ORM de Django. Un passage ultérieur à PostgreSQL restera ainsi une migration du schéma, des données et du déploiement, sans exiger une réécriture de l'application. SQLite reste le choix initial tant que la charge et les besoins de concurrence le permettent.
+The data model will use Django ORM features shared across database engines wherever possible. A later move to PostgreSQL should then require migrating the schema, data, and deployment, without rewriting the application. SQLite remains the initial choice while load and concurrency needs allow it.
 
-### Interface : templates Django, HTML, CSS et JavaScript natif
+### Interface: Django templates, HTML, CSS, and plain JavaScript
 
-Les pages seront rendues par le serveur. Le CSS définira une interface responsive et accessible ; JavaScript sera réservé aux interactions qui améliorent réellement l'usage. Aucune bibliothèque frontend n'est requise pour la première version. Cette approche évite une seconde application, une API interne systématique et une chaîne de compilation JavaScript.
+The server renders the pages. CSS provides a responsive and accessible interface; JavaScript is reserved for interactions that improve usability. No frontend library is required for the first version. This approach avoids a second application, an API for every internal interaction, and a JavaScript build pipeline.
 
-Une bibliothèque légère pourra être ajoutée plus tard pour une interaction précise si le besoin apparaît. React et Next.js ne sont pas retenus pour cette version.
+A lightweight library may be added later for a specific interaction if needed. React and Next.js are not used in this version.
 
-L'interface utilise les traductions intégrées à Django. L'anglais est la langue par défaut et le français reste disponible. La préférence d'un membre est enregistrée avec son compte ; celle d'un visiteur est conservée dans un cookie.
+The interface uses Django's built-in translations. English is the default language, and French remains available. A member's preference is saved with their account; a visitor's preference is stored in a cookie.
 
-### API externe : Django REST Framework
+### External API: Django REST Framework
 
-Une API JSON versionnée couvre les comptes, les projets, les tickets et les commentaires. Django REST Framework apporte la validation des requêtes, les réponses JSON, la pagination et les contrôles d'accès sans créer une seconde application ni dupliquer le modèle de données. Les pages HTML et l'API partagent les mêmes règles métier.
+A versioned JSON API covers accounts, projects, their versions, tickets, votes, comments, and reports. Django REST Framework provides request validation, JSON responses, pagination, and access control without creating a second application or duplicating the data model. The HTML pages and API share the same business rules.
 
-Les clients externes utilisent un jeton Bearer révocable, valable 30 jours. Seul son condensat SHA-256 est conservé en base ; le jeton brut n'est remis qu'à sa création. Les lectures publiques restent accessibles sans jeton. Les clients doivent utiliser HTTPS en production. Les appels depuis un autre site web ne sont pas autorisés par CORS dans la configuration initiale.
+External clients use a revocable Bearer token valid for 30 days. Only its SHA-256 digest is stored in the database; the raw token is returned only when created. Public reads remain available without a token. Clients must use HTTPS in production. Calls from another website are not permitted by CORS in the initial configuration.
 
-### Comptes et sécurité : fonctions intégrées à Django
+### Accounts and security: built-in Django features
 
-L'authentification par compte et mot de passe, les sessions, la protection contre les requêtes intersites et les contrôles d'accès s'appuieront sur Django. Les clients de l'API utilisent des jetons distincts des sessions du site. Chaque opération sensible vérifiera les droits côté serveur. Une connexion par un fournisseur externe pourra être étudiée après la première version, sans être nécessaire à son fonctionnement.
+Password authentication, sessions, cross-site request forgery protection, and access checks rely on Django. API clients use tokens separate from website sessions. Every sensitive operation checks permissions on the server. Account creation, votes, and reports are rate-limited with the local cache; the reverse proxy remains responsible for broader abuse protection. Login through an external provider may be considered later.
 
-### Exploitation et vérification
+### Operations and verification
 
-Le déploiement visé est une instance unique de l'application derrière un serveur HTTPS, avec un emplacement persistant pour SQLite et les éventuels fichiers déposés par les utilisateurs. Les migrations seront exécutées explicitement lors des mises à jour. Les parcours essentiels et les règles de permissions seront vérifiés par les outils de test de Django.
+The intended deployment is a single application instance behind an HTTPS reverse proxy, with persistent storage for SQLite and any user-uploaded files. Migrations will be run explicitly during updates. Django's test tools will verify the main user flows and permission rules.
 
-La base PostgreSQL du prototype restera distincte tant qu'une reprise de ses données n'aura pas été décidée et vérifiée. Aucun secret ne doit être versionné dans le dépôt. Les anciens fichiers d'environnement locaux ont été supprimés ; les éventuelles valeurs réelles qu'ils contenaient doivent être renouvelées avant toute mise en service.
+The prototype's PostgreSQL database will remain separate unless migration of its data is planned and verified. No secrets should be committed to the repository. Old local environment files have been removed; any real credentials they held must be rotated before deployment.
 
-## 2. Concept de l'application
+## 2. Application concept
 
-Swarm est un espace de suivi de problèmes organisé par projets. Il permet à une communauté de signaler un problème, de suivre son traitement et de discuter d'une solution dans un lieu commun.
+Swarm is a community feedback platform for game developers and other projects. It brings together bug reports and feature requests, lets the community support important topics, and helps project owners organize the work.
 
-### Personnes et accès
+### People and access
 
-- Un visiteur peut consulter les projets, les tickets et leurs discussions.
-- Un membre peut créer un projet, ouvrir un ticket et participer aux discussions.
-- Le créateur d'un projet en est le responsable : il peut modifier sa présentation et organiser le traitement de ses tickets.
-- L'auteur d'un ticket peut corriger sa description. Les changements concernant le traitement du ticket relèvent du responsable du projet.
-- Un administrateur peut intervenir sur les comptes et les contenus en cas d'abus ou d'erreur.
-- Chacun peut lire l'interface en anglais ou en français. Le choix d'un membre est retrouvé lorsqu'il se reconnecte.
-- Un membre peut changer son mot de passe, déconnecter tous ses appareils ou supprimer son compte. Après suppression, ses contributions restent visibles sans son nom et ses projets peuvent être repris par un administrateur.
+- A visitor can browse projects, tickets, and their discussions.
+- A member can create a project, open a ticket, join discussions, vote on a topic, and report abusive content.
+- A project's creator is its owner: they can edit its presentation and organize its tickets.
+- A ticket's author can edit its description. Decisions about its progress belong to the project owner.
+- An administrator can manage accounts, review reports, and hide content in cases of abuse or error.
+- Anyone can use the interface in English or French. A member's choice is restored when they sign in again.
+- A member can change their password, sign out on all devices, or delete their account. After deletion, their contributions remain visible without their name, and an administrator can take over their projects.
 
-### Projets
+### Projects
 
-Chaque projet possède un nom, une description et un responsable. Sa page rassemble les tickets qui le concernent et donne une vue de leur avancement. Les visiteurs peuvent parcourir la liste des projets et ouvrir la page de chacun.
+Each project has a name, a description, and an owner. Its page brings together its tickets, highlights the most supported open requests, and lists released or planned versions. The owner creates and updates these versions; visitors can view them.
 
 ### Tickets
 
-Un ticket appartient à un projet. Il contient un titre, une description, un auteur, une priorité et un état. Les états prévus sont **ouvert**, **en cours**, **résolu** et **fermé**. Un responsable peut faire évoluer l'état et la priorité ; l'historique des échanges reste visible après la résolution.
+A ticket belongs to a project. A new contribution is either a **bug report** or a **feature request**. A bug includes reproduction steps, expected behavior, actual behavior, and the affected version if known. Tickets created before this distinction remain unclassified until they are reviewed.
 
-Les membres peuvent commenter un ticket pour apporter des précisions ou suivre sa résolution. La date de création et la dernière activité sont visibles afin de replacer les échanges dans leur contexte.
+Each signed-in member can add or remove one vote per ticket. Votes make popular requests more visible without replacing the priority set by the owner during triage. The owner can set a target version and later record the version that contains the fix. They can also close a duplicate and point it to the original ticket; existing votes on the duplicate then count toward the original without counting the same member twice.
 
-### Parcours de la première version
+Ticket statuses are **open**, **in progress**, **resolved**, and **closed**. The owner can change a ticket's status and priority; discussions remain visible after resolution.
 
-Un visiteur découvre les projets et les tickets récents, puis peut filtrer les tickets d'un projet selon leur état ou leur priorité. Pour contribuer, il crée un compte et se connecte. Il peut alors ouvrir un ticket dans un projet ou répondre à un ticket existant. Le responsable du projet examine les nouveaux signalements, ajuste leur priorité et fait avancer leur état jusqu'à leur clôture.
+Members can comment on a ticket to add details or follow its resolution. They can report an inappropriate ticket or comment. Creation time and latest activity are shown to provide context for the discussion.
 
-La première version se concentre sur ce parcours. Les pièces jointes, les notifications, les votes, les échanges en temps réel et les intégrations externes restent hors de son périmètre initial.
+### First-version user journey
 
+A visitor explores projects and tickets, searches for an existing request, and filters or sorts by type, status, version, and popularity. To contribute, they create an account and sign in. They can then open a ticket, vote, or reply. The owner uses their triage dashboard, groups duplicates, plans versions, and moves tickets through to closure.
+
+Attachments, notifications, ticket subscriptions, real-time discussions, and external integrations remain topics for later consideration.
