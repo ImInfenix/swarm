@@ -1,10 +1,10 @@
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from .api_auth import issue_api_token
-from .models import Project, ProjectVersion, Ticket
+from .models import Project, ProjectVersion, Ticket, TicketVote
 
 
 class CommunityTicketTests(TestCase):
@@ -104,3 +104,44 @@ class CommunityTicketTests(TestCase):
         self.assertEqual(triaged.status_code, 200, triaged.data)
         self.assertEqual(triaged.data["fixed_version"], version_id)
         self.assertEqual(client.patch(version_url, {"released_on": None}, format="json").status_code, 400)
+
+    def test_web_vote_and_popular_ticket_order(self):
+        first = Ticket.objects.create(project=self.project, author=self.owner, type=Ticket.Type.FEATURE, title="First feature", description="Details")
+        second = Ticket.objects.create(project=self.project, author=self.owner, type=Ticket.Type.FEATURE, title="Second feature", description="Details")
+        vote_url = reverse("ticket_vote", args=[first.pk])
+        self.assertEqual(self.client.post(vote_url, {"action": "add"}).status_code, 302)
+        self.client.force_login(self.member)
+        self.assertRedirects(self.client.post(vote_url, {"action": "add"}), reverse("ticket_detail", args=[first.pk]))
+        self.assertRedirects(self.client.post(vote_url, {"action": "add"}), reverse("ticket_detail", args=[first.pk]))
+        self.assertEqual(TicketVote.objects.filter(ticket=first).count(), 1)
+        self.assertContains(self.client.get(reverse("ticket_detail", args=[first.pk])), "Remove vote")
+        self.client.post(reverse("set_language"), {"language": "fr"})
+        self.assertContains(self.client.get(reverse("ticket_detail", args=[first.pk])), "Retirer mon vote")
+        self.assertEqual(self.client.post(vote_url, {"action": "invalid"}).status_code, 400)
+        popular = self.client.get(reverse("project_detail", args=["game"]), {"sort": "popular"})
+        self.assertContains(popular, "Les plus soutenus")
+        self.assertEqual(list(popular.context["page"].object_list), [first, second])
+        self.assertRedirects(self.client.post(vote_url, {"action": "remove"}), reverse("ticket_detail", args=[first.pk]))
+        self.assertEqual(TicketVote.objects.count(), 0)
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.member)
+        self.assertEqual(csrf_client.post(vote_url, {"action": "add"}).status_code, 403)
+
+    def test_api_votes_and_filters(self):
+        version = ProjectVersion.objects.create(project=self.project, name="1.0")
+        first = Ticket.objects.create(project=self.project, author=self.owner, type=Ticket.Type.BUG, title="Old bug", description="Details", affected_version=version)
+        second = Ticket.objects.create(project=self.project, author=self.owner, type=Ticket.Type.FEATURE, title="New feature", description="Details")
+        vote_url = reverse("api_ticket_vote", args=[first.pk])
+        client = APIClient()
+        self.assertEqual(client.put(vote_url, {}, format="json").status_code, 401)
+        token, _ = issue_api_token(self.member)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        self.assertEqual(client.put(vote_url, {}, format="json").data["vote_count"], 1)
+        self.assertEqual(client.put(vote_url, {}, format="json").data["vote_count"], 1)
+        listing = client.get(reverse("api_project_tickets", args=["game"]), {"sort": "popular"})
+        self.assertEqual([ticket["id"] for ticket in listing.data["results"]], [first.pk, second.pk])
+        self.assertEqual(listing.data["results"][0]["vote_count"], 1)
+        self.assertEqual(client.get(reverse("api_ticket_list"), {"type": "bug", "version": version.pk}).data["count"], 1)
+        self.assertEqual(client.get(reverse("api_ticket_list"), {"type": "feature", "version": version.pk}).data["count"], 0)
+        self.assertEqual(client.delete(vote_url).data["vote_count"], 0)
+        self.assertEqual(client.delete(vote_url).data["vote_count"], 0)

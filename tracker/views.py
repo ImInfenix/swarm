@@ -18,12 +18,13 @@ from django.views.decorators.http import require_POST
 from .forms import CommentForm, ProjectEditForm, ProjectForm, ProjectVersionForm, SignUpForm, TicketForm, TriageForm
 from .account import revoke_user_access
 from .middleware import LANGUAGE_COOKIE
-from .models import ApiToken, Project, ProjectVersion, Ticket, UserPreference
+from .models import ApiToken, Project, ProjectVersion, Ticket, TicketVote, UserPreference
+from .ticket_queries import filter_tickets
 
 
 def home(request):
     projects = Project.objects.select_related("owner").annotate(ticket_count=Count("tickets")).order_by("name")[:6]
-    tickets = Ticket.objects.select_related("project", "author").order_by("-created_at", "-pk")[:8]
+    tickets = Ticket.objects.filter(is_hidden=False).select_related("project", "author").annotate(vote_count=Count("votes")).order_by("-created_at", "-pk")[:8]
     return render(request, "tracker/home.html", {"projects": projects, "tickets": tickets})
 
 
@@ -38,25 +39,23 @@ def project_list(request):
 
 def project_detail(request, slug):
     project = get_object_or_404(Project.objects.select_related("owner"), slug=slug)
-    tickets = project.tickets.select_related("author").order_by("-created_at", "-pk")
-    status = request.GET.get("status", "")
-    priority = request.GET.get("priority", "")
-    if status in Ticket.Status.values:
-        tickets = tickets.filter(status=status)
-    else:
-        status = ""
-    if priority in Ticket.Priority.values:
-        tickets = tickets.filter(priority=priority)
-    else:
-        priority = ""
+    tickets, filters, filter_query = filter_tickets(project.tickets.filter(is_hidden=False).select_related("author", "project"), request.GET)
+    popular_tickets = project.tickets.filter(is_hidden=False, status__in=[Ticket.Status.OPEN, Ticket.Status.IN_PROGRESS], votes__isnull=False).select_related("project").annotate(vote_count=Count("votes")).order_by("-vote_count", "-updated_at", "-pk")[:3]
     page = Paginator(tickets, 20).get_page(request.GET.get("page"))
     return render(request, "tracker/project_detail.html", {
         "project": project,
         "versions": project.versions.all(),
         "tickets": page,
         "page": page,
-        "status": status,
-        "priority": priority,
+        "status": filters["status"],
+        "priority": filters["priority"],
+        "ticket_type": filters["type"],
+        "version": filters["version"],
+        "sort": filters["sort"],
+        "query": filters["query"],
+        "filter_query": filter_query,
+        "popular_tickets": popular_tickets,
+        "types": Ticket.Type.choices,
         "statuses": Ticket.Status.choices,
         "priorities": Ticket.Priority.choices,
     })
@@ -116,17 +115,9 @@ def project_version_edit(request, slug, pk):
 
 
 def ticket_list(request):
-    tickets = Ticket.objects.select_related("project", "author").order_by("-created_at", "-pk")
-    query = request.GET.get("q", "").strip()
-    status = request.GET.get("status", "")
-    if query:
-        tickets = tickets.filter(Q(title__icontains=query) | Q(description__icontains=query) | Q(project__name__icontains=query))
-    if status in Ticket.Status.values:
-        tickets = tickets.filter(status=status)
-    else:
-        status = ""
+    tickets, filters, filter_query = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author"), request.GET, allow_project=True)
     page = Paginator(tickets, 20).get_page(request.GET.get("page"))
-    return render(request, "tracker/ticket_list.html", {"tickets": page, "page": page, "query": query, "status": status, "statuses": Ticket.Status.choices})
+    return render(request, "tracker/ticket_list.html", {"tickets": page, "page": page, "query": filters["query"], "status": filters["status"], "priority": filters["priority"], "ticket_type": filters["type"], "sort": filters["sort"], "project_slug": filters["project"], "filter_query": filter_query, "statuses": Ticket.Status.choices, "types": Ticket.Type.choices})
 
 
 @login_required
@@ -144,9 +135,24 @@ def ticket_create(request, slug):
 
 
 def ticket_detail(request, pk):
-    ticket = get_object_or_404(Ticket.objects.select_related("project", "project__owner", "author"), pk=pk)
-    comments = ticket.comments.select_related("author")
-    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": CommentForm()})
+    ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author", "affected_version", "target_version", "fixed_version").annotate(vote_count=Count("votes")), pk=pk)
+    comments = ticket.comments.filter(is_hidden=False).select_related("author")
+    voted = request.user.is_authenticated and TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
+    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": CommentForm(), "voted": voted})
+
+
+@login_required
+@require_POST
+def ticket_vote(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+    action = request.POST.get("action")
+    if action == "add":
+        TicketVote.objects.get_or_create(ticket=ticket, user=request.user)
+    elif action == "remove":
+        TicketVote.objects.filter(ticket=ticket, user=request.user).delete()
+    else:
+        return HttpResponseBadRequest(_("Unknown vote action."))
+    return redirect(ticket)
 
 
 @login_required
@@ -178,7 +184,7 @@ def ticket_triage(request, pk):
 @login_required
 @require_POST
 def comment_create(request, pk):
-    ticket = get_object_or_404(Ticket, pk=pk)
+    ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).annotate(vote_count=Count("votes")), pk=pk)
     form = CommentForm(request.POST)
     if form.is_valid():
         comment = form.save(commit=False)
@@ -188,8 +194,9 @@ def comment_create(request, pk):
         Ticket.objects.filter(pk=ticket.pk).update(updated_at=timezone.now())
         messages.success(request, _("Comment added."))
         return redirect(ticket)
-    comments = ticket.comments.select_related("author")
-    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form}, status=400)
+    comments = ticket.comments.filter(is_hidden=False).select_related("author")
+    voted = TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
+    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form, "voted": voted}, status=400)
 
 
 def signup(request):

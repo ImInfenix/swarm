@@ -1,8 +1,8 @@
 {% load i18n %}
 {% for ticket in tickets %}
   <a class="ticket-row" href="{{ ticket.get_absolute_url }}">
-    <span class="ticket-main"><strong>{{ ticket.title }}</strong><small>{{ ticket.project.name }} · #{{ ticket.pk }} · {{ ticket.created_at|date:"SHORT_DATE_FORMAT" }}</small></span>
-    <span class="ticket-meta"><span class="badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span><span class="priority">{{ ticket.get_priority_display }}</span></span>
+    <span class="ticket-main"><strong>{{ ticket.title }}</strong><small>{{ ticket.project.name }} · #{{ ticket.pk }} · {{ ticket.get_type_display }} · {{ ticket.created_at|date:"SHORT_DATE_FORMAT" }}</small></span>
+    <span class="ticket-meta"><span class="vote-count" aria-label="{% translate 'Votes' %}: {{ ticket.vote_count|default:0 }}">▲ {{ ticket.vote_count|default:0 }}</span><span class="badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span><span class="priority">{{ ticket.get_priority_display }}</span></span>
   </a>
 {% empty %}
   <p class="empty">{% translate 'No tickets yet.' %}</p>

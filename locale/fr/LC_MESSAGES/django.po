@@ -473,3 +473,39 @@ msgstr "Aucune version pour le moment."
 
 msgid "This version is already marked as a released fix."
 msgstr "Cette version est déjà indiquée comme correction publiée."
+
+msgid "Votes"
+msgstr "Votes"
+
+msgid "Vote"
+msgstr "Voter"
+
+msgid "Remove vote"
+msgstr "Retirer mon vote"
+
+msgid "Log in to vote"
+msgstr "Connectez-vous pour voter"
+
+msgid "Most supported"
+msgstr "Les plus soutenus"
+
+msgid "Newest"
+msgstr "Plus récents"
+
+msgid "Recently active"
+msgstr "Activité récente"
+
+msgid "Sort"
+msgstr "Trier"
+
+msgid "All types"
+msgstr "Tous les types"
+
+msgid "All versions"
+msgstr "Toutes les versions"
+
+msgid "Search tickets"
+msgstr "Rechercher des tickets"
+
+msgid "Unknown vote action."
+msgstr "Action de vote inconnue."

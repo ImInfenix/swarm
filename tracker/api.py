@@ -1,7 +1,7 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import PasswordChangeForm
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils import translation
@@ -16,7 +16,8 @@ from rest_framework.views import APIView
 from .api_auth import issue_api_token
 from .account import revoke_user_access
 from .forms import SignUpForm
-from .models import ApiToken, Comment, Project, ProjectVersion, Ticket, UserPreference, normalize_project_name
+from .models import ApiToken, Comment, Project, ProjectVersion, Ticket, TicketVote, UserPreference, normalize_project_name
+from .ticket_queries import filter_tickets
 
 
 class ApiPagination(PageNumberPagination):
@@ -97,10 +98,14 @@ class ProjectVersionWriteSerializer(StrictModelSerializer):
 class TicketSerializer(serializers.ModelSerializer):
     project = serializers.CharField(source="project.slug", read_only=True)
     author = serializers.CharField(source="author.username", read_only=True)
+    vote_count = serializers.SerializerMethodField()
+
+    def get_vote_count(self, ticket):
+        return ticket.vote_count if hasattr(ticket, "vote_count") else ticket.votes.count()
 
     class Meta:
         model = Ticket
-        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "status", "priority", "author", "created_at", "updated_at")
+        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "status", "priority", "vote_count", "author", "created_at", "updated_at")
 
 
 class TicketWriteSerializer(StrictModelSerializer):
@@ -193,11 +198,13 @@ class ApiRoot(APIView):
                 {"method": "GET", "path": "/api/v1/projects/{slug}/versions/", "access": "public", "returns": ["id", "name", "released_on", "created_at"]},
                 {"method": "POST", "path": "/api/v1/projects/{slug}/versions/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "PATCH", "path": "/api/v1/projects/{slug}/versions/{id}/", "access": "owner or staff", "body": ["name", "released_on"]},
-                {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["status", "priority", "page", "page_size"], "returns": "paginated tickets"},
+                {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "values": {"type": Ticket.Type.values}},
-                {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "project", "page", "page_size"], "returns": "paginated tickets"},
-                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "status", "priority", "author", "created_at", "updated_at"]},
+                {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "project", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
+                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "status", "priority", "vote_count", "author", "created_at", "updated_at"]},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
+                {"method": "PUT", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Add one vote for the authenticated user."},
+                {"method": "DELETE", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Remove the authenticated user's vote."},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version"], "values": {"status": Ticket.Status.values, "priority": Ticket.Priority.values}},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/comments/", "access": "public", "query": ["page", "page_size"], "returns": "paginated comments"},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/comments/", "access": "token", "body": ["body"]},
@@ -365,13 +372,7 @@ class ProjectTicketListApi(APIView):
 
     def get(self, request, slug):
         project = self.get_project(slug)
-        tickets = project.tickets.select_related("project", "author").order_by("-created_at", "-pk")
-        ticket_status = request.query_params.get("status", "")
-        priority = request.query_params.get("priority", "")
-        if ticket_status in Ticket.Status.values:
-            tickets = tickets.filter(status=ticket_status)
-        if priority in Ticket.Priority.values:
-            tickets = tickets.filter(priority=priority)
+        tickets, _, _ = filter_tickets(project.tickets.filter(is_hidden=False).select_related("project", "author"), request.query_params)
         paginator = ApiPagination()
         page = paginator.paginate_queryset(tickets, request, view=self)
         return paginator.get_paginated_response(TicketSerializer(page, many=True).data)
@@ -386,19 +387,7 @@ class ProjectTicketListApi(APIView):
 
 class TicketListApi(APIView):
     def get(self, request):
-        tickets = Ticket.objects.select_related("project", "author").order_by("-created_at", "-pk")
-        query = request.query_params.get("q", "").strip()
-        ticket_status = request.query_params.get("status", "")
-        priority = request.query_params.get("priority", "")
-        project = request.query_params.get("project", "")
-        if query:
-            tickets = tickets.filter(Q(title__icontains=query) | Q(description__icontains=query) | Q(project__name__icontains=query))
-        if ticket_status in Ticket.Status.values:
-            tickets = tickets.filter(status=ticket_status)
-        if priority in Ticket.Priority.values:
-            tickets = tickets.filter(priority=priority)
-        if project:
-            tickets = tickets.filter(project__slug=project)
+        tickets, _, _ = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author"), request.query_params, allow_project=True)
         paginator = ApiPagination()
         page = paginator.paginate_queryset(tickets, request, view=self)
         return paginator.get_paginated_response(TicketSerializer(page, many=True).data)
@@ -406,7 +395,7 @@ class TicketListApi(APIView):
 
 class TicketDetailApi(APIView):
     def get_object(self, pk):
-        return get_object_or_404(Ticket.objects.select_related("project", "author"), pk=pk)
+        return get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "author").annotate(vote_count=Count("votes")), pk=pk)
 
     def get(self, request, pk):
         return Response(TicketSerializer(self.get_object(pk)).data)
@@ -421,9 +410,24 @@ class TicketDetailApi(APIView):
         return Response(TicketSerializer(ticket).data)
 
 
+class TicketVoteApi(APIView):
+    def get_ticket(self, pk):
+        return get_object_or_404(Ticket, pk=pk, is_hidden=False)
+
+    def put(self, request, pk):
+        ticket = self.get_ticket(pk)
+        TicketVote.objects.get_or_create(ticket=ticket, user=request.user)
+        return Response({"vote_count": ticket.votes.count(), "voted": True})
+
+    def delete(self, request, pk):
+        ticket = self.get_ticket(pk)
+        TicketVote.objects.filter(ticket=ticket, user=request.user).delete()
+        return Response({"vote_count": ticket.votes.count(), "voted": False})
+
+
 class TicketTriageApi(APIView):
     def patch(self, request, pk):
-        ticket = get_object_or_404(Ticket.objects.select_related("project", "project__owner", "author"), pk=pk)
+        ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author"), pk=pk)
         if request.user != ticket.project.owner and not request.user.is_staff:
             raise PermissionDenied()
         serializer = TriageSerializer(ticket, data=request.data, partial=True)
@@ -434,11 +438,11 @@ class TicketTriageApi(APIView):
 
 class CommentListApi(APIView):
     def get_ticket(self, pk):
-        return get_object_or_404(Ticket, pk=pk)
+        return get_object_or_404(Ticket, pk=pk, is_hidden=False)
 
     def get(self, request, pk):
         ticket = self.get_ticket(pk)
-        comments = ticket.comments.select_related("author").order_by("created_at", "pk")
+        comments = ticket.comments.filter(is_hidden=False).select_related("author").order_by("created_at", "pk")
         paginator = ApiPagination()
         page = paginator.paginate_queryset(comments, request, view=self)
         return paginator.get_paginated_response(CommentSerializer(page, many=True).data)
