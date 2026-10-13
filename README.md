@@ -18,6 +18,22 @@ $env:DJANGO_DEBUG = '1'
 
 The site is then available at <http://127.0.0.1:8000/>. Run the tests with `.\.venv\Scripts\python.exe manage.py test`.
 
+## Demonstration data
+
+Fill the selected database with example accounts, projects, versions, tickets, votes, and comments:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py seed_demo
+```
+
+The demonstration accounts cannot sign in. Clear the selected database, including all accounts and content, with:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py reset_demo
+```
+
+The reset command asks for confirmation. Add `--yes` to skip the prompt. Set `SWARM_DB_PATH` before either command to select a separate database.
+
 ## API and deployment
 
 The API supports viewing and managing accounts, projects, tickets, and comments. `GET /api/v1/` returns JSON documentation covering its routes, fields, and access rules.
