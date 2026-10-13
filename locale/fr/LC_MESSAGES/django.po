@@ -572,3 +572,27 @@ msgstr "Doublon"
 
 msgid "Release date cannot be in the future."
 msgstr "La date de sortie ne peut pas être dans le futur."
+
+msgid "Notifications"
+msgstr "Notifications"
+
+msgid "New comment"
+msgstr "Nouveau commentaire"
+
+msgid "Ticket updated"
+msgstr "Ticket mis à jour"
+
+msgid "Follow updates"
+msgstr "Suivre les mises à jour"
+
+msgid "Unfollow"
+msgstr "Ne plus suivre"
+
+msgid "Mark as read"
+msgstr "Marquer comme lu"
+
+msgid "No notifications yet."
+msgstr "Aucune notification pour le moment."
+
+msgid "Unknown subscription action."
+msgstr "Action d’abonnement inconnue."

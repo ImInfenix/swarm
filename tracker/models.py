@@ -133,6 +133,7 @@ class Ticket(models.Model):
         with transaction.atomic():
             result = super().save(*args, **kwargs)
             TicketVote.objects.create(ticket=self, user_id=self.author_id)
+            TicketSubscription.objects.create(ticket=self, user_id=self.author_id)
             return result
 
 
@@ -157,6 +158,32 @@ class TicketVote(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_vote")]
+
+
+class TicketSubscription(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="subscriptions")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ticket_subscriptions")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_subscription")]
+
+
+class Notification(models.Model):
+    class Kind(models.TextChoices):
+        COMMENT = "comment", _("New comment")
+        TRIAGE = "triage", _("Ticket updated")
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="notifications")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="sent_notifications")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [models.Index(fields=["user", "read_at", "-created_at"], name="notification_inbox_idx")]
 
 
 class ContentReport(models.Model):

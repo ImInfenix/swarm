@@ -19,7 +19,8 @@ from django.views.decorators.http import require_POST
 from .forms import CommentForm, ContentReportForm, ProjectEditForm, ProjectForm, ProjectVersionForm, SignUpForm, TicketForm, TriageForm
 from .account import revoke_user_access
 from .middleware import LANGUAGE_COOKIE
-from .models import ApiToken, Comment, ContentReport, Project, ProjectVersion, Ticket, TicketVote, UserPreference
+from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketSubscription, TicketVote, UserPreference
+from .notifications import notify_subscribers
 from .rate_limits import allow_action, client_address
 from .ticket_queries import filter_tickets, with_vote_counts
 
@@ -156,7 +157,36 @@ def ticket_detail(request, pk):
     ticket = get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author", "affected_version", "target_version", "fixed_version", "duplicate_of")), pk=pk)
     comments = ticket.comments.filter(is_hidden=False).select_related("author")
     voted = request.user.is_authenticated and TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
-    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": CommentForm(), "voted": voted})
+    subscribed = request.user.is_authenticated and TicketSubscription.objects.filter(ticket=ticket, user=request.user).exists()
+    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": CommentForm(), "voted": voted, "subscribed": subscribed})
+
+
+@login_required
+@require_POST
+def ticket_subscription(request, pk):
+    ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+    if request.POST.get("action") == "follow":
+        TicketSubscription.objects.get_or_create(ticket=ticket, user=request.user)
+    elif request.POST.get("action") == "unfollow":
+        TicketSubscription.objects.filter(ticket=ticket, user=request.user).delete()
+    else:
+        return HttpResponseBadRequest(_("Unknown subscription action."))
+    return redirect(ticket)
+
+
+@login_required
+def notification_list(request):
+    notifications = Notification.objects.filter(user=request.user, ticket__is_hidden=False).select_related("ticket", "actor")
+    page = Paginator(notifications, 20).get_page(request.GET.get("page"))
+    return render(request, "tracker/notifications.html", {"notifications": page, "page": page})
+
+
+@login_required
+@require_POST
+def notification_read(request, pk):
+    notification = get_object_or_404(Notification, pk=pk, user=request.user, ticket__is_hidden=False)
+    Notification.objects.filter(pk=notification.pk, read_at__isnull=True).update(read_at=timezone.now())
+    return redirect(notification.ticket)
 
 
 @login_required
@@ -195,9 +225,13 @@ def ticket_triage(request, pk):
     ticket = get_object_or_404(Ticket.objects.select_related("project"), pk=pk)
     if request.user != ticket.project.owner and not request.user.is_staff:
         raise PermissionDenied
+    previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
     form = TriageForm(request.POST or None, instance=ticket)
     if request.method == "POST" and form.is_valid():
         form.save()
+        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
+        if current != previous:
+            notify_subscribers(ticket, request.user, Notification.Kind.TRIAGE)
         messages.success(request, _("Triage updated."))
         return redirect(ticket)
     return render(request, "tracker/form.html", {"form": form, "title": _("Triage ticket"), "submit_label": _("Save changes")})
@@ -216,11 +250,13 @@ def comment_create(request, pk):
         comment.author = request.user
         comment.save()
         Ticket.objects.filter(pk=ticket.pk).update(updated_at=timezone.now())
+        notify_subscribers(ticket, request.user, Notification.Kind.COMMENT)
         messages.success(request, _("Comment added."))
         return redirect(ticket)
     comments = ticket.comments.filter(is_hidden=False).select_related("author")
     voted = TicketVote.objects.filter(ticket=ticket, user=request.user).exists()
-    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form, "voted": voted}, status=400)
+    subscribed = TicketSubscription.objects.filter(ticket=ticket, user=request.user).exists()
+    return render(request, "tracker/ticket_detail.html", {"ticket": ticket, "comments": comments, "comment_form": form, "voted": voted, "subscribed": subscribed}, status=400)
 
 
 def submit_content_report(request, target, ticket, title):

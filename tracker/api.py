@@ -16,7 +16,8 @@ from rest_framework.views import APIView
 from .api_auth import issue_api_token
 from .account import revoke_user_access
 from .forms import SignUpForm
-from .models import ApiToken, Comment, ContentReport, Project, ProjectVersion, Ticket, TicketVote, UserPreference, normalize_project_name
+from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketSubscription, TicketVote, UserPreference, normalize_project_name
+from .notifications import notify_subscribers
 from .rate_limits import allow_action, client_address
 from .ticket_queries import filter_tickets, with_vote_counts
 
@@ -221,11 +222,15 @@ class ApiRoot(APIView):
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
                 {"method": "PUT", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Add one vote for the authenticated user."},
                 {"method": "DELETE", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Remove the authenticated user's vote."},
+                {"method": "PUT", "path": "/api/v1/tickets/{id}/subscription/", "access": "token", "description": "Follow ticket updates."},
+                {"method": "DELETE", "path": "/api/v1/tickets/{id}/subscription/", "access": "token", "description": "Stop following ticket updates."},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/report/", "access": "token", "body": ["reason", "details"], "values": {"reason": ContentReport.Reason.values}},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version", "duplicate_of"], "values": {"status": Ticket.Status.values, "priority": Ticket.Priority.values}},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/comments/", "access": "public", "query": ["page", "page_size"], "returns": "paginated comments"},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/comments/", "access": "token", "body": ["body"]},
                 {"method": "POST", "path": "/api/v1/comments/{id}/report/", "access": "token", "body": ["reason", "details"], "values": {"reason": ContentReport.Reason.values}},
+                {"method": "GET", "path": "/api/v1/notifications/", "access": "token", "query": ["page", "page_size"], "returns": "paginated notifications"},
+                {"method": "POST", "path": "/api/v1/notifications/{id}/read/", "access": "token", "description": "Mark a notification as read."},
             ],
             "errors": {"400": "Invalid input", "401": "Missing or invalid token", "403": "Insufficient permissions", "404": "Unknown resource", "429": "Rate limit exceeded"},
         })
@@ -471,9 +476,13 @@ class TicketTriageApi(APIView):
         ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author"), pk=pk)
         if request.user != ticket.project.owner and not request.user.is_staff:
             raise PermissionDenied()
+        previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
         serializer = TriageSerializer(ticket, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
+        if current != previous:
+            notify_subscribers(ticket, request.user, Notification.Kind.TRIAGE)
         return Response(TicketSerializer(ticket).data)
 
 
@@ -495,7 +504,44 @@ class CommentListApi(APIView):
         serializer.is_valid(raise_exception=True)
         comment = serializer.save(ticket=ticket, author=request.user)
         Ticket.objects.filter(pk=ticket.pk).update(updated_at=timezone.now())
+        notify_subscribers(ticket, request.user, Notification.Kind.COMMENT)
         return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+
+class TicketSubscriptionApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+        TicketSubscription.objects.get_or_create(ticket=ticket, user=request.user)
+        return Response({"subscribed": True})
+
+    def delete(self, request, pk):
+        ticket = get_object_or_404(Ticket, pk=pk, is_hidden=False)
+        TicketSubscription.objects.filter(ticket=ticket, user=request.user).delete()
+        return Response({"subscribed": False})
+
+
+class NotificationListApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifications = Notification.objects.filter(user=request.user, ticket__is_hidden=False).select_related("ticket", "actor")
+        paginator = ApiPagination()
+        page = paginator.paginate_queryset(notifications, request, view=self)
+        return paginator.get_paginated_response([
+            {"id": item.pk, "ticket": item.ticket_id, "ticket_title": item.ticket.title, "actor": item.actor.username if item.actor else None, "kind": item.kind, "created_at": item.created_at, "read_at": item.read_at}
+            for item in page
+        ])
+
+
+class NotificationReadApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk, user=request.user, ticket__is_hidden=False)
+        Notification.objects.filter(pk=notification.pk, read_at__isnull=True).update(read_at=timezone.now())
+        return Response({"read": True})
 
 
 class ContentReportWriteSerializer(StrictModelSerializer):
