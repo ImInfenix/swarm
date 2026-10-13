@@ -626,3 +626,30 @@ msgstr "Retirez les pièces jointes avant de changer le type du ticket."
 
 msgid "Choose an image."
 msgstr "Choisissez une image."
+
+msgid "Needs information"
+msgstr "Informations nécessaires"
+
+msgid "Declined"
+msgstr "Refusé"
+
+msgid "Cannot reproduce"
+msgstr "Impossible à reproduire"
+
+msgid "Closure reason"
+msgstr "Motif de clôture"
+
+msgid "Decision explanation"
+msgstr "Explication de la décision"
+
+msgid "Choose a closure reason."
+msgstr "Choisissez un motif de clôture."
+
+msgid "Explain this decision."
+msgstr "Expliquez cette décision."
+
+msgid "Explain what information is needed."
+msgstr "Précisez les informations nécessaires."
+
+msgid "Reason not recorded"
+msgstr "Motif non renseigné"

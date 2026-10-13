@@ -116,8 +116,9 @@ class ProjectVersionForm(forms.ModelForm):
 class TriageForm(forms.ModelForm):
     class Meta:
         model = Ticket
-        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of")
-        labels = {"status": _("Status"), "priority": _("Priority"), "target_version": _("Target version"), "fixed_version": _("Released in version"), "duplicate_of": _("Duplicate of")}
+        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of", "closure_reason", "decision_note")
+        labels = {"status": _("Status"), "priority": _("Priority"), "target_version": _("Target version"), "fixed_version": _("Released in version"), "duplicate_of": _("Duplicate of"), "closure_reason": _("Closure reason"), "decision_note": _("Decision explanation")}
+        widgets = {"decision_note": forms.Textarea(attrs={"rows": 4})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -135,7 +136,30 @@ class TriageForm(forms.ModelForm):
             cleaned["status"] = Ticket.Status.CLOSED
             cleaned["target_version"] = None
             cleaned["fixed_version"] = None
+            cleaned["closure_reason"] = Ticket.ClosureReason.DUPLICATE
+        elif cleaned.get("status") == Ticket.Status.CLOSED:
+            if cleaned.get("closure_reason") in ("", Ticket.ClosureReason.DUPLICATE):
+                self.add_error("closure_reason", _("Choose a closure reason."))
+            if not cleaned.get("decision_note", "").strip():
+                self.add_error("decision_note", _("Explain this decision."))
+            cleaned["target_version"] = None
+            cleaned["fixed_version"] = None
+        elif cleaned.get("status") == Ticket.Status.NEEDS_INFO:
+            cleaned["closure_reason"] = ""
+            if not cleaned.get("decision_note", "").strip():
+                self.add_error("decision_note", _("Explain what information is needed."))
+        else:
+            cleaned["closure_reason"] = ""
+            cleaned["decision_note"] = ""
         return cleaned
+
+    def save(self, commit=True):
+        ticket = super().save(commit=False)
+        ticket.closure_reason = self.cleaned_data["closure_reason"]
+        ticket.decision_note = self.cleaned_data["decision_note"]
+        if commit:
+            ticket.save()
+        return ticket
 
 
 class CommentForm(forms.ModelForm):

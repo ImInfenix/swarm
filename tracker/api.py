@@ -131,7 +131,7 @@ class TicketSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "attachments", "created_at", "updated_at")
+        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "closure_reason", "decision_note", "priority", "vote_count", "author", "attachments", "created_at", "updated_at")
 
 
 class TicketWriteSerializer(StrictModelSerializer):
@@ -163,7 +163,7 @@ class TicketWriteSerializer(StrictModelSerializer):
 class TriageSerializer(StrictModelSerializer):
     class Meta:
         model = Ticket
-        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of")
+        fields = ("status", "priority", "target_version", "fixed_version", "duplicate_of", "closure_reason", "decision_note")
 
     def validate(self, attrs):
         for field in ("target_version", "fixed_version"):
@@ -179,7 +179,26 @@ class TriageSerializer(StrictModelSerializer):
                 raise ValidationError({"duplicate_of": _("This ticket already has duplicates.")})
             if duplicate.pk == self.instance.pk or duplicate.project_id != self.instance.project_id or duplicate.duplicate_of_id or duplicate.is_hidden:
                 raise ValidationError({"duplicate_of": _("Choose a visible ticket from this project that is not a duplicate.")})
-            attrs.update({"status": Ticket.Status.CLOSED, "target_version": None, "fixed_version": None})
+            attrs.update({"status": Ticket.Status.CLOSED, "target_version": None, "fixed_version": None, "closure_reason": Ticket.ClosureReason.DUPLICATE})
+        else:
+            status_value = attrs.get("status", self.instance.status)
+            reason = attrs.get("closure_reason", self.instance.closure_reason)
+            note = attrs.get("decision_note", self.instance.decision_note)
+            if status_value == Ticket.Status.CLOSED:
+                errors = {}
+                if reason in ("", Ticket.ClosureReason.DUPLICATE):
+                    errors["closure_reason"] = _("Choose a closure reason.")
+                if not note.strip():
+                    errors["decision_note"] = _("Explain this decision.")
+                if errors:
+                    raise ValidationError(errors)
+                attrs.update({"target_version": None, "fixed_version": None})
+            elif status_value == Ticket.Status.NEEDS_INFO:
+                attrs["closure_reason"] = ""
+                if not note.strip():
+                    raise ValidationError({"decision_note": _("Explain what information is needed.")})
+            else:
+                attrs.update({"closure_reason": "", "decision_note": ""})
         return attrs
 
 
@@ -238,7 +257,7 @@ class ApiRoot(APIView):
                 {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "required": ["type", "title", "description"], "values": {"type": Ticket.Type.values}},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/ticket-suggestions/", "access": "public", "query": ["q"], "returns": "up to five similar visible tickets"},
                 {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "project", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
-                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at"]},
+                {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "closure_reason", "decision_note", "priority", "vote_count", "author", "attachments", "created_at", "updated_at"]},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/attachments/", "access": "author or staff", "content_type": "multipart/form-data", "body": ["file"], "description": "Upload one bug screenshot, up to three per ticket."},
                 {"method": "DELETE", "path": "/api/v1/attachments/{id}/", "access": "ticket author, project owner or staff"},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
@@ -247,7 +266,7 @@ class ApiRoot(APIView):
                 {"method": "PUT", "path": "/api/v1/tickets/{id}/subscription/", "access": "token", "description": "Follow ticket updates."},
                 {"method": "DELETE", "path": "/api/v1/tickets/{id}/subscription/", "access": "token", "description": "Stop following ticket updates."},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/report/", "access": "token", "body": ["reason", "details"], "values": {"reason": ContentReport.Reason.values}},
-                {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version", "duplicate_of"], "values": {"status": Ticket.Status.values, "priority": Ticket.Priority.values}},
+                {"method": "PATCH", "path": "/api/v1/tickets/{id}/triage/", "access": "project owner or staff", "body": ["status", "priority", "target_version", "fixed_version", "duplicate_of", "closure_reason", "decision_note"], "values": {"status": Ticket.Status.values, "closure_reason": Ticket.ClosureReason.values, "priority": Ticket.Priority.values}},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/comments/", "access": "public", "query": ["page", "page_size"], "returns": "paginated comments"},
                 {"method": "POST", "path": "/api/v1/tickets/{id}/comments/", "access": "token", "body": ["body"]},
                 {"method": "POST", "path": "/api/v1/comments/{id}/report/", "access": "token", "body": ["reason", "details"], "values": {"reason": ContentReport.Reason.values}},
@@ -542,11 +561,11 @@ class TicketTriageApi(APIView):
         ticket = get_object_or_404(Ticket.objects.filter(is_hidden=False).select_related("project", "project__owner", "author"), pk=pk)
         if request.user != ticket.project.owner and not request.user.is_staff:
             raise PermissionDenied()
-        previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
+        previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
         serializer = TriageSerializer(ticket, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
+        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
         if current != previous:
             notify_subscribers(ticket, request.user, Notification.Kind.TRIAGE)
         return Response(TicketSerializer(ticket).data)

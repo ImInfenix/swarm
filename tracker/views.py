@@ -265,11 +265,11 @@ def ticket_triage(request, pk):
     ticket = get_object_or_404(Ticket.objects.select_related("project"), pk=pk)
     if request.user != ticket.project.owner and not request.user.is_staff:
         raise PermissionDenied
-    previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
+    previous = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
     form = TriageForm(request.POST or None, instance=ticket)
     if request.method == "POST" and form.is_valid():
         form.save()
-        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id)
+        current = (ticket.status, ticket.priority, ticket.target_version_id, ticket.fixed_version_id, ticket.duplicate_of_id, ticket.closure_reason, ticket.decision_note)
         if current != previous:
             notify_subscribers(ticket, request.user, Notification.Kind.TRIAGE)
         messages.success(request, _("Triage updated."))

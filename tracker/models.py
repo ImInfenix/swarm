@@ -94,8 +94,15 @@ class Ticket(models.Model):
     class Status(models.TextChoices):
         OPEN = "open", _("Open")
         IN_PROGRESS = "in_progress", _("In progress")
+        NEEDS_INFO = "needs_info", _("Needs information")
         RESOLVED = "resolved", _("Resolved")
         CLOSED = "closed", _("Closed")
+
+    class ClosureReason(models.TextChoices):
+        DECLINED = "declined", _("Declined")
+        CANNOT_REPRODUCE = "cannot_reproduce", _("Cannot reproduce")
+        DUPLICATE = "duplicate", _("Duplicate")
+        OTHER = "other", _("Other")
 
     class Priority(models.TextChoices):
         LOW = "low", _("Low")
@@ -116,6 +123,8 @@ class Ticket(models.Model):
     duplicate_of = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="duplicates")
     is_hidden = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    closure_reason = models.CharField(max_length=20, choices=ClosureReason.choices, blank=True, default="")
+    decision_note = models.TextField(blank=True)
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.NORMAL)
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="tickets")
     created_at = models.DateTimeField(auto_now_add=True)
