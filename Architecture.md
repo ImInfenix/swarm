@@ -66,12 +66,12 @@ A ticket belongs to a project. Every contribution is either a **bug report** or 
 
 Each signed-in member can add or remove one vote per ticket. Votes make popular requests more visible without replacing the priority set by the owner during triage. The owner can set a target version and later record the version that contains the fix. They can also close a duplicate and point it to the original ticket; existing votes on the duplicate then count toward the original without counting the same member twice.
 
-Ticket statuses are **open**, **in progress**, **resolved**, and **closed**. The owner can change a ticket's status and priority; discussions remain visible after resolution.
+Ticket statuses are **open**, **in progress**, **needs information**, **resolved**, and **closed**. The owner can change a ticket's status and priority. Closing a ticket requires a reason and explanation, except when it is linked to a duplicate. Requests for information also include an explanation. Discussions remain visible after resolution.
 
 Members can comment on a ticket to add details or follow its resolution. They can report an inappropriate ticket or comment. Creation time and latest activity are shown to provide context for the discussion.
 
 ### First-version user journey
 
-A visitor explores projects and tickets, searches for an existing request, and filters or sorts by type, status, version, and popularity. To contribute, they create an account and sign in. They can then open a ticket, vote, or reply. The owner uses their triage dashboard, groups duplicates, plans versions, and moves tickets through to closure.
+A visitor explores projects and tickets, searches for an existing request, and filters or sorts by type, status, version, and popularity. A project roadmap separates tickets targeted for planned versions from tickets delivered in released versions. To contribute, visitors create an account and sign in. Ticket creation suggests possible duplicates. Members can open tickets, attach up to three images to bug reports, vote, reply, and follow tickets for notifications about comments and triage changes. The owner uses the triage dashboard, groups duplicates, plans versions, and moves tickets through to closure.
 
-Attachments, notifications, ticket subscriptions, real-time discussions, and external integrations remain topics for later consideration.
+Real-time discussions and external integrations remain topics for later consideration.

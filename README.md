@@ -1,6 +1,6 @@
 # Swarm
 
-Swarm is a community feedback platform for game developers and other projects. Members report bugs, request features, support ideas with votes, and discuss solutions. Project owners organize this feedback and track the versions affected or targeted.
+Swarm is a community feedback platform for game developers and other projects. Members report bugs, request features, support ideas with votes, and discuss solutions. Project owners organize this feedback and track the versions affected or targeted. Ticket creation suggests possible duplicates, bug reports accept screenshots, and project roadmaps show planned and delivered work. Members can follow tickets and receive notifications on the site.
 
 The application provides a web interface and a JSON API. It is built with Django and uses SQLite. The technology choices and feature scope are described in [Architecture.md](Architecture.md).
 
@@ -36,6 +36,6 @@ The reset command asks for confirmation. Add `--yes` to skip the prompt. Set `SW
 
 ## API and deployment
 
-The API supports viewing and managing accounts, projects, tickets, and comments. `GET /api/v1/` returns JSON documentation covering its routes, fields, and access rules.
+The API supports accounts, projects, tickets, comments, notifications, image attachments, and roadmaps. `GET /api/v1/` returns JSON documentation covering its routes, fields, and access rules.
 
 For server installation, see [DEPLOYMENT.md](DEPLOYMENT.md).

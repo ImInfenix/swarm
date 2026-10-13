@@ -23,6 +23,7 @@ from .middleware import LANGUAGE_COOKIE
 from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketAttachment, TicketSubscription, TicketVote, UserPreference
 from .notifications import notify_subscribers
 from .rate_limits import allow_action, client_address
+from .roadmap import project_roadmap
 from .ticket_queries import filter_tickets, with_vote_counts
 
 
@@ -63,6 +64,12 @@ def project_detail(request, slug):
         "statuses": Ticket.Status.choices,
         "priorities": Ticket.Priority.choices,
     })
+
+
+def project_roadmap_view(request, slug):
+    project = get_object_or_404(Project, slug=slug)
+    planned_versions, released_versions, backlog = project_roadmap(project)
+    return render(request, "tracker/roadmap.html", {"project": project, "planned_versions": planned_versions, "released_versions": released_versions, "backlog": backlog})
 
 
 @login_required

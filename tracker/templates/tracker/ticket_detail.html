@@ -37,8 +37,8 @@
       {% if ticket.closure_reason %}<dt>{% translate 'Closure reason' %}</dt><dd>{{ ticket.get_closure_reason_display }}</dd>{% endif %}
       <dt>{% translate 'Priority' %}</dt><dd>{{ ticket.get_priority_display }}</dd>
       {% if ticket.affected_version %}<dt>{% translate 'Affected version' %}</dt><dd>{{ ticket.affected_version.name }}</dd>{% endif %}
-      {% if ticket.target_version %}<dt>{% translate 'Target version' %}</dt><dd>{{ ticket.target_version.name }}</dd>{% endif %}
-      {% if ticket.fixed_version %}<dt>{% translate 'Released in version' %}</dt><dd>{{ ticket.fixed_version.name }}</dd>{% endif %}
+      {% if ticket.target_version %}<dt>{% translate 'Target version' %}</dt><dd><a href="{% url 'project_roadmap' ticket.project.slug %}#version-{{ ticket.target_version.pk }}">{{ ticket.target_version.name }}</a></dd>{% endif %}
+      {% if ticket.fixed_version %}<dt>{% translate 'Released in version' %}</dt><dd><a href="{% url 'project_roadmap' ticket.project.slug %}#version-{{ ticket.fixed_version.pk }}">{{ ticket.fixed_version.name }}</a></dd>{% endif %}
       {% if ticket.duplicate_of %}<dt>{% translate 'Duplicate of' %}</dt><dd><a href="{{ ticket.duplicate_of.get_absolute_url }}">#{{ ticket.duplicate_of.pk }}</a></dd>{% endif %}
       <dt>{% translate 'Project' %}</dt><dd><a href="{{ ticket.project.get_absolute_url }}">{{ ticket.project.name }}</a></dd>
       <dt>{% translate 'Owner' %}</dt><dd>{{ ticket.project.owner.username|default:deleted_account }}</dd>

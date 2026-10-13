@@ -24,6 +24,7 @@ from .models import ApiToken, Comment, ContentReport, Notification, Project, Pro
 from .notifications import notify_subscribers
 from .suggestions import similar_tickets
 from .rate_limits import allow_action, client_address
+from .roadmap import project_roadmap
 from .ticket_queries import filter_tickets, with_vote_counts
 
 
@@ -253,6 +254,7 @@ class ApiRoot(APIView):
                 {"method": "POST", "path": "/api/v1/projects/{slug}/versions/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "PATCH", "path": "/api/v1/projects/{slug}/versions/{id}/", "access": "owner or staff", "body": ["name", "released_on"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/triage/", "access": "owner or staff", "returns": ["popular", "bugs", "unanswered"]},
+                {"method": "GET", "path": "/api/v1/projects/{slug}/roadmap/", "access": "public", "returns": ["planned_versions", "released_versions", "backlog"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "required": ["type", "title", "description"], "values": {"type": Ticket.Type.values}},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/ticket-suggestions/", "access": "public", "query": ["q"], "returns": "up to five similar visible tickets"},
@@ -443,6 +445,25 @@ class ProjectTriageDashboardApi(APIView):
         bugs = tickets.filter(type=Ticket.Type.BUG, status=Ticket.Status.OPEN).order_by("-created_at", "-pk")[:10]
         unanswered = tickets.filter(status=Ticket.Status.OPEN, comments__isnull=True).order_by("-created_at", "-pk")[:10]
         return Response({"popular": TicketSerializer(popular, many=True).data, "bugs": TicketSerializer(bugs, many=True).data, "unanswered": TicketSerializer(unanswered, many=True).data})
+
+
+class ProjectRoadmapApi(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        project = get_object_or_404(Project, slug=slug)
+        planned, released, backlog = project_roadmap(project)
+        return Response({
+            "planned_versions": [
+                {"id": version.pk, "name": version.name, "tickets": TicketSerializer(version.planned_tickets, many=True).data}
+                for version in planned
+            ],
+            "released_versions": [
+                {"id": version.pk, "name": version.name, "released_on": version.released_on, "tickets": TicketSerializer(version.delivered_tickets, many=True).data}
+                for version in released
+            ],
+            "backlog": TicketSerializer(backlog, many=True).data,
+        })
 
 
 class ProjectTicketListApi(APIView):
