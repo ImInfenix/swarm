@@ -596,3 +596,6 @@ msgstr "Aucune notification pour le moment."
 
 msgid "Unknown subscription action."
 msgstr "Action d’abonnement inconnue."
+
+msgid "Possible existing tickets"
+msgstr "Tickets existants possibles"

@@ -3,6 +3,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.utils import translation
 from django.utils.translation import gettext as _
@@ -18,6 +19,7 @@ from .account import revoke_user_access
 from .forms import SignUpForm
 from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketSubscription, TicketVote, UserPreference, normalize_project_name
 from .notifications import notify_subscribers
+from .suggestions import similar_tickets
 from .rate_limits import allow_action, client_address
 from .ticket_queries import filter_tickets, with_vote_counts
 
@@ -217,6 +219,7 @@ class ApiRoot(APIView):
                 {"method": "GET", "path": "/api/v1/projects/{slug}/triage/", "access": "owner or staff", "returns": ["popular", "bugs", "unanswered"]},
                 {"method": "GET", "path": "/api/v1/projects/{slug}/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "POST", "path": "/api/v1/projects/{slug}/tickets/", "access": "token", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"], "required": ["type", "title", "description"], "values": {"type": Ticket.Type.values}},
+                {"method": "GET", "path": "/api/v1/projects/{slug}/ticket-suggestions/", "access": "public", "query": ["q"], "returns": "up to five similar visible tickets"},
                 {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "project", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at"]},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
@@ -422,6 +425,20 @@ class ProjectTicketListApi(APIView):
         serializer.is_valid(raise_exception=True)
         ticket = serializer.save(project=project, author=request.user)
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
+
+
+class TicketSuggestionApi(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        project = get_object_or_404(Project, slug=slug)
+        query = request.query_params.get("q", "").strip()[:160]
+        if len(query) < 3:
+            return Response([])
+        return Response([
+            {"id": ticket.pk, "title": ticket.title, "status": ticket.get_status_display(), "url": reverse("ticket_detail", args=[ticket.pk])}
+            for ticket in similar_tickets(project, query)
+        ])
 
 
 class TicketListApi(APIView):

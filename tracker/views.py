@@ -150,7 +150,7 @@ def ticket_create(request, slug):
         ticket.save()
         messages.success(request, _("Ticket created."))
         return redirect(ticket)
-    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True, "related_project": project})
+    return render(request, "tracker/form.html", {"form": form, "title": _("New ticket · %(project)s") % {"project": project.name}, "submit_label": _("Create ticket"), "ticket_form": True, "related_project": project, "suggestions_url": reverse("api_ticket_suggestions", args=[project.slug])})
 
 
 def ticket_detail(request, pk):

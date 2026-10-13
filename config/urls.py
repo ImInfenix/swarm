@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/v1/projects/<slug:slug>/versions/<int:pk>/", api.ProjectVersionDetailApi.as_view(), name="api_project_version_detail"),
     path("api/v1/projects/<slug:slug>/triage/", api.ProjectTriageDashboardApi.as_view(), name="api_project_triage_dashboard"),
     path("api/v1/projects/<slug:slug>/tickets/", api.ProjectTicketListApi.as_view(), name="api_project_tickets"),
+    path("api/v1/projects/<slug:slug>/ticket-suggestions/", api.TicketSuggestionApi.as_view(), name="api_ticket_suggestions"),
     path("api/v1/tickets/", api.TicketListApi.as_view(), name="api_ticket_list"),
     path("api/v1/tickets/<int:pk>/", api.TicketDetailApi.as_view(), name="api_ticket_detail"),
     path("api/v1/tickets/<int:pk>/vote/", api.TicketVoteApi.as_view(), name="api_ticket_vote"),
