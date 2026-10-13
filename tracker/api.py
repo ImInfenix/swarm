@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import PasswordChangeForm
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -10,14 +11,16 @@ from django.utils.translation import gettext as _
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied, Throttled, ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .attachments import attach_files
 from .api_auth import issue_api_token
 from .account import revoke_user_access
 from .forms import SignUpForm
-from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketSubscription, TicketVote, UserPreference, normalize_project_name
+from .models import ApiToken, Comment, ContentReport, Notification, Project, ProjectVersion, Ticket, TicketAttachment, TicketSubscription, TicketVote, UserPreference, normalize_project_name
 from .notifications import notify_subscribers
 from .suggestions import similar_tickets
 from .rate_limits import allow_action, client_address
@@ -106,17 +109,29 @@ class ProjectVersionWriteSerializer(StrictModelSerializer):
         return value
 
 
+class TicketAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, attachment):
+        return reverse("ticket_attachment_download", args=[attachment.pk])
+
+    class Meta:
+        model = TicketAttachment
+        fields = ("id", "original_name", "content_type", "url", "created_at")
+
+
 class TicketSerializer(serializers.ModelSerializer):
     project = serializers.CharField(source="project.slug", read_only=True)
     author = serializers.CharField(source="author.username", read_only=True)
     vote_count = serializers.SerializerMethodField()
+    attachments = TicketAttachmentSerializer(many=True, read_only=True)
 
     def get_vote_count(self, ticket):
         return ticket.vote_count if hasattr(ticket, "vote_count") else with_vote_counts(Ticket.objects.filter(pk=ticket.pk)).values_list("vote_count", flat=True).get()
 
     class Meta:
         model = Ticket
-        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at")
+        fields = ("id", "project", "type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "attachments", "created_at", "updated_at")
 
 
 class TicketWriteSerializer(StrictModelSerializer):
@@ -139,6 +154,8 @@ class TicketWriteSerializer(StrictModelSerializer):
             if errors:
                 raise ValidationError(errors)
         else:
+            if self.instance and self.instance.attachments.exists():
+                raise ValidationError({"type": _("Remove attachments before changing this ticket type.")})
             attrs.update({"steps_to_reproduce": "", "expected_result": "", "actual_result": "", "affected_version": None})
         return attrs
 
@@ -222,6 +239,8 @@ class ApiRoot(APIView):
                 {"method": "GET", "path": "/api/v1/projects/{slug}/ticket-suggestions/", "access": "public", "query": ["q"], "returns": "up to five similar visible tickets"},
                 {"method": "GET", "path": "/api/v1/tickets/", "access": "public", "query": ["q", "status", "priority", "type", "version", "sort", "project", "page", "page_size"], "values": {"sort": ["newest", "popular", "active"]}, "returns": "paginated tickets with vote_count"},
                 {"method": "GET", "path": "/api/v1/tickets/{id}/", "access": "public", "returns": ["id", "project", "type", "title", "description", "affected_version", "target_version", "fixed_version", "duplicate_of", "status", "priority", "vote_count", "author", "created_at", "updated_at"]},
+                {"method": "POST", "path": "/api/v1/tickets/{id}/attachments/", "access": "author or staff", "content_type": "multipart/form-data", "body": ["file"], "description": "Upload one bug screenshot, up to three per ticket."},
+                {"method": "DELETE", "path": "/api/v1/attachments/{id}/", "access": "ticket author, project owner or staff"},
                 {"method": "PATCH", "path": "/api/v1/tickets/{id}/", "access": "author or staff", "body": ["type", "title", "description", "steps_to_reproduce", "expected_result", "actual_result", "affected_version"]},
                 {"method": "PUT", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Add one vote for the authenticated user."},
                 {"method": "DELETE", "path": "/api/v1/tickets/{id}/vote/", "access": "token", "description": "Remove the authenticated user's vote."},
@@ -413,7 +432,7 @@ class ProjectTicketListApi(APIView):
 
     def get(self, request, slug):
         project = self.get_project(slug)
-        tickets, _, _ = filter_tickets(project.tickets.filter(is_hidden=False).select_related("project", "author"), request.query_params)
+        tickets, _, _ = filter_tickets(project.tickets.filter(is_hidden=False).select_related("project", "author").prefetch_related("attachments"), request.query_params)
         paginator = ApiPagination()
         page = paginator.paginate_queryset(tickets, request, view=self)
         return paginator.get_paginated_response(TicketSerializer(page, many=True).data)
@@ -443,7 +462,7 @@ class TicketSuggestionApi(APIView):
 
 class TicketListApi(APIView):
     def get(self, request):
-        tickets, _, _ = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author"), request.query_params, allow_project=True)
+        tickets, _, _ = filter_tickets(Ticket.objects.filter(is_hidden=False).select_related("project", "author").prefetch_related("attachments"), request.query_params, allow_project=True)
         paginator = ApiPagination()
         page = paginator.paginate_queryset(tickets, request, view=self)
         return paginator.get_paginated_response(TicketSerializer(page, many=True).data)
@@ -451,7 +470,7 @@ class TicketListApi(APIView):
 
 class TicketDetailApi(APIView):
     def get_object(self, pk):
-        return get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "author")), pk=pk)
+        return get_object_or_404(with_vote_counts(Ticket.objects.filter(is_hidden=False).select_related("project", "author").prefetch_related("attachments")), pk=pk)
 
     def get(self, request, pk):
         return Response(TicketSerializer(self.get_object(pk)).data)
@@ -464,6 +483,36 @@ class TicketDetailApi(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(TicketSerializer(ticket).data)
+
+
+class TicketAttachmentApi(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        ticket = get_object_or_404(Ticket.objects.select_related("project"), pk=pk, is_hidden=False)
+        if request.user != ticket.author and not request.user.is_staff:
+            raise PermissionDenied()
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            raise ValidationError({"file": _("Choose an image.")})
+        try:
+            attachment = attach_files(ticket, [uploaded], request.user)[0]
+        except DjangoValidationError as error:
+            raise ValidationError({"file": error.messages})
+        return Response(TicketAttachmentSerializer(attachment).data, status=status.HTTP_201_CREATED)
+
+
+class TicketAttachmentDetailApi(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        attachment = get_object_or_404(TicketAttachment.objects.select_related("ticket", "ticket__project"), pk=pk)
+        ticket = attachment.ticket
+        if request.user not in (ticket.author, ticket.project.owner) and not request.user.is_staff:
+            raise PermissionDenied()
+        attachment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TicketVoteApi(APIView):

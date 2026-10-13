@@ -19,6 +19,7 @@
         <h3>{% translate 'Steps to reproduce' %}</h3><div class="prose">{{ ticket.steps_to_reproduce|linebreaks }}</div>
         <h3>{% translate 'Expected result' %}</h3><div class="prose">{{ ticket.expected_result|linebreaks }}</div>
         <h3>{% translate 'Actual result' %}</h3><div class="prose">{{ ticket.actual_result|linebreaks }}</div>
+        {% if attachments %}<h3>{% translate 'Screenshots' %}</h3><ul class="attachment-list">{% for attachment in attachments %}<li><a href="{% url 'ticket_attachment_download' attachment.pk %}">{{ attachment.original_name }}</a>{% if user == ticket.author or user == ticket.project.owner or user.is_staff %}<form method="post" action="{% url 'ticket_attachment_delete' attachment.pk %}">{% csrf_token %}<button type="submit" class="text-button">{% translate 'Remove' %}</button></form>{% endif %}</li>{% endfor %}</ul>{% endif %}
       {% endif %}
     </article>
     <section class="section">

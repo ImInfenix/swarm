@@ -1,11 +1,15 @@
 import hashlib
 import re
 import unicodedata
+import uuid
 from itertools import count
+from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.urls import reverse
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -167,6 +171,29 @@ class TicketSubscription(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["ticket", "user"], name="unique_ticket_subscription")]
+
+
+def ticket_attachment_path(instance, filename):
+    extension = Path(filename).suffix.lower()
+    return f"ticket-attachments/{instance.ticket_id}/{uuid.uuid4().hex}{extension}"
+
+
+class TicketAttachment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to=ticket_attachment_path)
+    original_name = models.CharField(max_length=120)
+    content_type = models.CharField(max_length=40)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="ticket_attachments")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+
+@receiver(post_delete, sender=TicketAttachment)
+def remove_ticket_attachment_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
 
 
 class Notification(models.Model):

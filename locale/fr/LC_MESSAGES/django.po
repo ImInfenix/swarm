@@ -599,3 +599,30 @@ msgstr "Action d’abonnement inconnue."
 
 msgid "Possible existing tickets"
 msgstr "Tickets existants possibles"
+
+msgid "Screenshots"
+msgstr "Captures d’écran"
+
+msgid "Up to three images, 5 MB each."
+msgstr "Jusqu’à trois images de 5 Mo chacune."
+
+msgid "Remove"
+msgstr "Retirer"
+
+msgid "Images can only be attached to bug reports."
+msgstr "Les images ne peuvent être jointes qu’aux signalements de bugs."
+
+msgid "A bug report can have at most three images."
+msgstr "Un signalement de bug peut contenir au maximum trois images."
+
+msgid "Each image must be smaller than 5 MB."
+msgstr "Chaque image doit faire moins de 5 Mo."
+
+msgid "Upload a valid PNG, JPEG, GIF, or WebP image."
+msgstr "Envoyez une image PNG, JPEG, GIF ou WebP valide."
+
+msgid "Remove attachments before changing this ticket type."
+msgstr "Retirez les pièces jointes avant de changer le type du ticket."
+
+msgid "Choose an image."
+msgstr "Choisissez une image."
